@@ -1,0 +1,47 @@
+/** Libellés des codes NAF rencontrés sur le bassin (sous-ensemble, pour affichage). */
+
+export const NAF_LABELS: Record<string, string> = {
+  "10.13A": "Charcuterie industrielle",
+  "10.39A": "Transformation de légumes",
+  "10.71C": "Boulangerie-pâtisserie industrielle",
+  "16.23Z": "Charpentes et menuiseries",
+  "20.30Z": "Peintures et vernis",
+  "22.22Z": "Emballages en plastique",
+  "24.33Z": "Profilage à froid",
+  "25.11Z": "Structures métalliques",
+  "25.62B": "Mécanique industrielle",
+  "28.22Z": "Matériel de levage et manutention",
+  "29.32Z": "Équipements automobiles",
+  "33.12Z": "Réparation de machines",
+  "38.11Z": "Collecte des déchets non dangereux",
+  "41.20A": "Construction de maisons individuelles",
+  "41.20B": "Construction d'autres bâtiments",
+  "42.11Z": "Construction de routes",
+  "43.12A": "Travaux de terrassement",
+  "43.22B": "Installation CVC (chauffage, clim)",
+  "43.32A": "Travaux de menuiserie bois et PVC",
+  "43.34Z": "Travaux de peinture et vitrerie",
+  "43.99C": "Travaux de maçonnerie générale",
+  "45.20A": "Entretien de véhicules légers",
+  "46.90Z": "Commerce de gros non spécialisé",
+  "47.11F": "Hypermarchés",
+  "49.41A": "Transports routiers de fret interurbains",
+  "49.41B": "Transports routiers de fret de proximité",
+  "52.10B": "Entreposage non frigorifique",
+  "52.29A": "Messagerie, fret express",
+  "52.29B": "Affrètement et organisation des transports",
+  "53.20Z": "Autres activités de poste et courrier",
+  "56.21Z": "Traiteurs",
+  "62.02A": "Conseil en systèmes informatiques",
+  "69.20Z": "Expertise comptable",
+  "70.22Z": "Conseil pour les affaires et la gestion",
+  "71.12B": "Ingénierie, études techniques",
+  "78.20Z": "Travail temporaire (agences d'intérim)",
+  "81.21Z": "Nettoyage courant des bâtiments",
+  "81.22Z": "Autres activités de nettoyage",
+  "82.92Z": "Conditionnement à façon",
+};
+
+export function nafLabel(naf: string): string {
+  return NAF_LABELS[naf] ?? `NAF ${naf}`;
+}

@@ -1,0 +1,48 @@
+# Taux de recours à l'intérim par division NAF (2 premiers chiffres du code NAF).
+# ANCRAGE RÉEL : taux par grand secteur DARES, T1 2025 (source : dares.travail-emploi.gouv.fr,
+#   série « L'intérim », données DSN) — construction 8,3 %, industrie 6,9 %,
+#   tertiaire marchand 2,7 %, tertiaire non marchand 0,5 %.
+# APPROXIMATION À REMPLACER : la ventilation par division NAF ci-dessous est une
+#   estimation cohérente avec ces ancrages, PAS la donnée détaillée DARES (NAF 88 × région),
+#   dont le téléchargement automatisé est bloqué (CAPTCHA). Remplacer ce fichier par la
+#   vraie ventilation dès récupération manuelle. Voir docs/sources.md.
+# Format : naf_division;libelle;taux_pct;niveau_source
+naf_division;libelle;taux_pct;niveau_source
+10;Industries alimentaires;6.5;approx_division
+16;Travail du bois;5.5;approx_division
+20;Industrie chimique;7.5;approx_division
+22;Caoutchouc et plastique;8.5;approx_division
+23;Autres produits minéraux non métalliques;6.5;approx_division
+24;Métallurgie;8.0;approx_division
+25;Produits métalliques;7.5;approx_division
+28;Machines et équipements;6.5;approx_division
+29;Industrie automobile;8.5;approx_division
+30;Autres matériels de transport;7.0;approx_division
+33;Réparation et installation de machines;5.5;approx_division
+38;Collecte et traitement des déchets;5.0;approx_division
+41;Construction de bâtiments;7.8;approx_division
+42;Génie civil;9.5;approx_division
+43;Travaux de construction spécialisés;8.2;approx_division
+45;Commerce et réparation automobile;2.0;approx_division
+46;Commerce de gros;2.8;approx_division
+47;Commerce de détail;1.8;approx_division
+49;Transports terrestres;6.5;approx_division
+52;Entreposage et services auxiliaires des transports;7.5;approx_division
+53;Activités de poste et de courrier;4.0;approx_division
+55;Hébergement;1.2;approx_division
+56;Restauration;1.0;approx_division
+62;Programmation et conseil informatique;0.5;approx_division
+68;Activités immobilières;0.4;approx_division
+69;Activités juridiques et comptables;0.3;approx_division
+70;Sièges sociaux et conseil de gestion;0.5;approx_division
+71;Architecture et ingénierie;1.5;approx_division
+73;Publicité et études de marché;0.8;approx_division
+78;Activités liées à l'emploi (dont agences d'intérim);0.0;exclu
+81;Services aux bâtiments et aménagement paysager;3.0;approx_division
+82;Services administratifs de soutien;2.0;approx_division
+84;Administration publique;0.2;approx_division
+85;Enseignement;0.3;approx_division
+86;Activités pour la santé humaine;1.0;approx_division
+87;Hébergement médico-social;0.8;approx_division
+88;Action sociale sans hébergement;0.5;approx_division
+DEFAULT;Divisions non listées;1.5;approx_defaut
