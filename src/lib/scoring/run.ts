@@ -21,7 +21,12 @@ export function loadEngineInput(
   weightsOverride?: Partial<WeightMap>,
 ): EngineInput {
   // Les défauts du code couvrent un poids introduit après le dernier seed
-  const weights = { ...defaultWeightMap(), ...loadWeights(db), ...weightsOverride };
+  const weights: WeightMap = { ...defaultWeightMap(), ...loadWeights(db) };
+  if (weightsOverride) {
+    for (const [k, v] of Object.entries(weightsOverride)) {
+      if (typeof v === "number" && Number.isFinite(v)) weights[k] = v;
+    }
+  }
 
   const agenceRow = db.select().from(schema.agence).limit(1).all()[0];
   if (!agenceRow) {

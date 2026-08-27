@@ -866,7 +866,9 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       payload: { intitule: offre.intitule, rome: offre.rome, typeContrat: "CDI", entrepriseNom: rawDenomination },
     });
 
-    const autres = [bulkActifs[(q * 53 + 101) % bulkActifs.length], bulkActifs[(q * 71 + 211) % bulkActifs.length]];
+    const autres = [bulkActifs[(q * 53 + 101) % bulkActifs.length], bulkActifs[(q * 71 + 211) % bulkActifs.length]].filter(
+      (a, i, arr) => a.siret !== cible.siret && arr.findIndex((x) => x.siret === a.siret) === i,
+    );
     const candidats = [
       {
         siret: cible.siret,
@@ -929,7 +931,8 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
 
     for (const e of entreprises) tx.insert(schema.entreprise).values(e).run();
     for (const e of etabs) {
-      const { secteurId: _ignore, ...row } = e;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { secteurId, ...row } = e;
       tx.insert(schema.etablissement).values(row).run();
     }
     for (const s of signaux) tx.insert(schema.signal).values(s).run();

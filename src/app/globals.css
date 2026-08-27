@@ -46,6 +46,12 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Identité Chronos : acier = Strate (structurel), ambre sismique = Sismo (événementiel) */
+  --color-strate: var(--strate);
+  --color-strate-soft: var(--strate-soft);
+  --color-sismo: var(--sismo);
+  --color-sismo-soft: var(--sismo-soft);
+  --color-risque: var(--risque);
 }
 
 :root {
@@ -81,6 +87,12 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(0.981 0.002 106);
+  --strate: oklch(0.46 0.062 252);
+  --strate-soft: oklch(0.93 0.018 252);
+  --sismo: oklch(0.6 0.14 55);
+  --sismo-soft: oklch(0.95 0.045 78);
+  --risque: oklch(0.5 0.19 27);
 }
 
 .dark {
@@ -115,6 +127,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --strate: oklch(0.72 0.07 252);
+  --strate-soft: oklch(0.3 0.04 252);
+  --sismo: oklch(0.75 0.13 62);
+  --sismo-soft: oklch(0.33 0.06 60);
+  --risque: oklch(0.66 0.18 25);
 }
 
 @layer base {
