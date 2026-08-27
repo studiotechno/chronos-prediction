@@ -19,8 +19,17 @@ Dernière mise à jour : 27 août 2026.
   `categorie_entreprise`, `date_creation`, `etat_administratif`, `tranche_effectif_salarie`
   et surtout `matching_etablissements[]` (siret, activite_principale, code_postal,
   libelle_commune, latitude/longitude en chaînes, est_siege, tranche_effectif_salarie).
-- **Clé** : aucune. **Rate limit : 7 req/s**, respecté par un token bucket strict
-  (`src/lib/ingest/http.ts`).
+- **Second endpoint vérifié** (appel réel le 27/08/2026), recherche par SIRET :
+  `GET https://recherche-entreprises.api.gouv.fr/search?q=<siret>&per_page=1`
+  Il sert à l'enrichissement à la demande (`src/lib/ingest/enrich.ts`) : un titulaire
+  de marché public absent du référentiel est récupéré individuellement.
+- **Clé** : aucune. **Limite annoncée : 7 req/s — insuffisante en pratique.**
+  Constaté en conditions réelles le 27/08/2026 : l'API renvoie des **HTTP 429** sur des
+  rafales soutenues même sous 7 req/s. Le client part donc à 5 req/s, reprend
+  automatiquement sur 429/5xx (attente exponentielle, en-tête `Retry-After` respecté)
+  et **réduit durablement son débit** à chaque 429 (`src/lib/ingest/http.ts`).
+  Un ingestion complète du bassin de Vichy (30 km, 121 codes NAF) passe ainsi
+  sans erreur : 7 072 entreprises lues, 9 273 établissements écrits.
 - La liste complète des 732 codes NAF valides acceptés par le paramètre
   `activite_principale` est versionnée dans `data/reference/naf-codes.json`
   (extraite de la réponse d'erreur de l'API elle-même) : elle sert à développer
@@ -63,6 +72,17 @@ Dernière mise à jour : 27 août 2026.
 - **Clé** : aucune. Adapter : `src/lib/ingest/adapters/decp.ts`.
 - Note : le jeu correspond à l'arrêté du 22/12/2022. Le nom d'acheteur n'est pas
   fourni, seulement son SIRET (`acheteur_id`).
+- **Écueil majeur constaté sur données réelles (27/08/2026)** : le filtre porte sur le
+  **lieu d'exécution**, pas sur le siège du titulaire. Sur 90 jours dans l'Allier,
+  **71 marchés sur 72** étaient attribués à des entreprises absentes d'un référentiel
+  SIRENE bâti autour de l'agence — le signal ne scorait donc quasiment personne.
+  Correctif appliqué : `scripts/ingest/decp.ts` enrichit le référentiel à la demande
+  via la recherche SIRENE par SIRET. Après correctif : **72/72 rattachés**.
+- **Question de conception ouverte** : ces titulaires sont souvent domiciliés hors du
+  bassin (Clermont-Ferrand, Lyon, région parisienne) alors que le chantier, lui, est
+  dans le département. La composante « distance » du Strate les pénalise sur la
+  position de leur siège, alors que le besoin de main-d'œuvre est local. À trancher :
+  mesurer la distance sur le lieu d'exécution du marché plutôt que sur le siège.
 
 ## BODACC — annonces civiles et commerciales · **vérifiée** ✅
 

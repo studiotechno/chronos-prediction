@@ -3,7 +3,7 @@
  * ENDPOINT VÉRIFIÉ le 27/08/2026 par appel réel (voir docs/sources.md) :
  *   GET https://recherche-entreprises.api.gouv.fr/near_point
  *       ?lat=&long=&radius=&activite_principale=&page=&per_page=
- * Ouverte, sans clé, LIMITÉE À 7 REQ/S (limiteur strict ci-dessous).
+ * Ouverte, sans clé, limite annoncée 7 req/s (voir le limiteur ci-dessous).
  * Rayon max utile : 50 km.
  */
 import { z } from "zod";
@@ -12,7 +12,9 @@ import { fetchJsonCache, RateLimiter } from "../http";
 import type { FetchParams, NormalizedRecord, SourceAdapter } from "../types";
 
 const BASE = "https://recherche-entreprises.api.gouv.fr";
-const limiter = new RateLimiter(7);
+// 7 req/s est la limite annoncée ; en pratique l'API renvoie des 429 bien avant
+// sur des rafales soutenues. On part à 5 et le limiteur se ralentit tout seul.
+const limiter = new RateLimiter(5);
 
 const etabSchema = z.object({
   siret: z.string(),
