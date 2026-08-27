@@ -2,6 +2,7 @@
  * Ingestion DECP : marchés publics attribués (signaux MARCHE_ATTRIBUE).
  * Usage : npm run ingest:decp -- --depuis=90d --departement=03
  */
+import "../env";
 import { parseArgs } from "node:util";
 import { getDb } from "../../src/lib/db";
 import { runIngestion } from "../../src/lib/ingest/run";

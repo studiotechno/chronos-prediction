@@ -2,6 +2,7 @@
  * Ingestion BODACC : procédures collectives et mouvements de capital.
  * Usage : npm run ingest:bodacc -- --depuis=90d --departement=03
  */
+import "../env";
 import { parseArgs } from "node:util";
 import { getDb } from "../../src/lib/db";
 import { runIngestion } from "../../src/lib/ingest/run";

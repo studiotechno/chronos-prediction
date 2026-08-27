@@ -41,12 +41,13 @@ Prérequis : Node 20+ (testé sous Node 22).
 | `npm run dev` | serveur de développement Next.js |
 | `npm run db:migrate` | applique les migrations Drizzle (`drizzle/`) |
 | `npm run db:seed` | poids par défaut + agence + fixtures (idempotent, dates relatives au jour du seed) |
+| `npm run db:seed -- --sans-fixtures` | base vierge prête pour des données réelles (poids + agence seulement) |
 | `npm run score` | recalcule Strate, Sismo et la table `lead` |
-| `npm run test` | Vitest — 84 tests (scoring pur, raisons, rapprochement) |
+| `npm run test` | Vitest — 95 tests (scoring pur, raisons, rapprochement, parsing France Travail) |
 | `npm run ingest:sirene -- --lat=46.13 --lon=3.43 --rayon=30 --naf=41,42,43,49,52` | référentiel du bassin (sans clé, 7 req/s respectées) |
 | `npm run ingest:decp -- --depuis=90d --departement=03` | marchés publics attribués (sans clé) |
 | `npm run ingest:bodacc -- --depuis=90d --departement=03` | procédures collectives + capital (sans clé) |
-| `npm run ingest:offres -- --depuis=14d` | offres France Travail — **clé requise, endpoint non vérifié** (voir ci-dessous) |
+| `npm run ingest:offres -- --depuis=90d` | offres France Travail — **clé requise** (voir ci-dessous), puis rapprochement et dérivation |
 | `npm run ingest:all` | les quatre, dans l'ordre |
 
 Les réponses brutes des API sont mises en cache dans `.cache/` (TTL 24 h,
@@ -63,9 +64,23 @@ Les réponses brutes des API sont mises en cache dans `.cache/` (TTL 24 h,
 3. Récupérer l'identifiant client et la clé secrète (OAuth2 `client_credentials`).
 4. Copier `.env.example` vers `.env` et renseigner `FRANCETRAVAIL_CLIENT_ID` et
    `FRANCETRAVAIL_CLIENT_SECRET`.
-5. **Important** : conformément à la règle du projet (« ne devine jamais un endpoint »),
-   `fetch()` de l'adapter échoue tant que l'endpoint n'a pas été vérifié par un appel
-   réel. La marche à suivre précise est dans [docs/sources.md](docs/sources.md).
+Les endpoints (jeton OAuth2 et recherche d'offres) ont été **vérifiés par appels réels**
+et l'adapter est opérationnel : voir [docs/sources.md](docs/sources.md) pour les
+contraintes exactes de l'API et les trois écarts constatés entre sa documentation et
+son comportement réel.
+
+### Monter une base 100 % réelle
+
+```bash
+cp .env.example .env        # puis renseigner les deux clés France Travail
+DATABASE_PATH=data/reel.db npm run db:migrate
+DATABASE_PATH=data/reel.db npm run db:seed -- --sans-fixtures
+DATABASE_PATH=data/reel.db npm run ingest:all
+DATABASE_PATH=data/reel.db npm run score
+DATABASE_PATH=data/reel.db npm run dev
+```
+
+Le bandeau « Démo — données fictives » disparaît dès qu'aucune fixture n'est en base.
 
 L'état de vérification de chaque source (endpoints, filtres et champs vérifiés par
 appels réels, blocages, replis) est tenu à jour dans **[docs/sources.md](docs/sources.md)**
@@ -111,11 +126,21 @@ Principes tenus :
 
 ## Limites connues de la V0
 
-- **France Travail non branché** (clé + vérification d'endpoint requises) — la source la
-  plus importante du système. Fixtures en attendant.
-- **Cold start des dérivées d'offres** : une offre clôturée disparaît de l'API, donc
-  OFFRE_REPUBLIEE et la baseline d'OFFRE_VELOCITE ne deviennent fiables qu'après
-  quelques semaines d'ingestion régulière.
+- **Cold start des dérivées d'offres** — la limite la plus importante. L'API France
+  Travail ne renvoie que les offres **actives** : une offre clôturée disparaît. Au
+  premier import, même sur 90 jours, `OFFRE_REPUBLIEE` et `OFFRE_VELOCITE` valent zéro,
+  alors que ce sont les deux signaux les plus prédictifs. Ils n'apparaissent qu'après
+  plusieurs semaines d'ingestion quotidienne. **Il faut donc lancer le cron dès
+  maintenant, même sans utilisateur** : la valeur de l'outil s'accumule avec
+  l'observation.
+- **Le rapprochement d'entité est le facteur limitant**, exactement comme annoncé :
+  France Travail ne publie jamais le SIRET de l'employeur, donc chaque offre doit être
+  rapprochée. Mesuré sur l'Allier : 74 rattachements automatiques sur 2 211 offres,
+  dont 882 légitimement hors ICP. Chaque point de rappel gagné ici vaut davantage que
+  n'importe quel réglage de poids.
+- **Distance mesurée sur le siège**, pas sur le lieu d'exécution d'un marché public :
+  une entreprise clermontoise qui décroche un chantier dans l'Allier est pénalisée
+  alors que son besoin de main-d'œuvre est local. Décision de produit à trancher.
 - **Table DARES approximée par division** (ancrée sur les taux réels par grand secteur
   T1 2025) — remplacement manuel documenté dans docs/sources.md.
 - **Mono-agence** : les scores sont calculés pour la première agence de la table

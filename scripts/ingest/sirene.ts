@@ -4,6 +4,7 @@
  * --naf accepte des divisions (2 chiffres) ou des codes complets (43.99C),
  * les divisions sont développées via data/reference/naf-codes.json.
  */
+import "../env";
 import { parseArgs } from "node:util";
 import fs from "node:fs";
 import path from "node:path";

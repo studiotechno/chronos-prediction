@@ -6,6 +6,7 @@
  * voir docs/sources.md et .env.example). L'appel échoue avec un message
  * explicite. La dérivation, elle, fonctionne sur toute offre déjà en staging.
  */
+import "../env";
 import { parseArgs } from "node:util";
 import { getDb } from "../../src/lib/db";
 import { runIngestion } from "../../src/lib/ingest/run";
@@ -28,10 +29,11 @@ async function main() {
     console.error(e instanceof Error ? e.message : e);
   }
 
-  const d = deriveEtEnregistrer(db);
+  const d = await deriveEtEnregistrer(db);
+  const r = d.rapprochement;
   console.log(
-    `[francetravail] rapprochement : ${d.rapprochement.autos} automatiques, ` +
-      `${d.rapprochement.ambigus} en file de résolution, ${d.rapprochement.rejets} rejets`,
+    `[francetravail] rapprochement : ${r.autos} automatiques (dont ${r.autosViaSirene} via SIRENE), ` +
+      `${r.ambigus} en file de résolution, ${r.rejets} rejets, ${r.horsCible} hors secteurs cibles`,
   );
   console.log(
     `[francetravail] dérivation : ${d.derives} signaux calculés, ${d.inseres} nouveaux insérés` +

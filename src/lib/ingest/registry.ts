@@ -29,8 +29,9 @@ export const SOURCES: SourceMeta[] = [
     descriptionFr:
       "Offres actives en temps réel. La source la plus importante : ce sont les dérivées qui comptent (republication, vélocité, CDD répétés, missions concurrentes).",
     sansCle: false,
-    etatEndpoint: "non_verifie",
-    notesFr: "Clé OAuth2 requise — créer un compte sur francetravail.io (voir .env.example).",
+    etatEndpoint: "verifie",
+    notesFr:
+      "Clé OAuth2 requise (francetravail.io). L'API ne publie jamais le SIRET de l'employeur : chaque offre passe par le rapprochement d'entité.",
   },
   {
     id: "decp",

@@ -13,6 +13,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import crypto from "node:crypto";
 import * as schema from "../db/schema";
 import { matchEntity, type CandidatEtab } from "../matching/match";
+import { candidatsSirene, enrichirSiretsManquants } from "./enrich";
 
 export type OffreLike = {
   id: string;
@@ -27,6 +28,16 @@ export type OffreLike = {
   parAgenceInterim: number;
   datePublication: string;
   closedAt: string | null;
+};
+
+export type RapprochementStats = {
+  autos: number;
+  /** Part des rattachements obtenus en interrogeant SIRENE (passe 2). */
+  autosViaSirene: number;
+  ambigus: number;
+  rejets: number;
+  /** Offres écartées avant tout appel réseau : NAF hors divisions cibles. */
+  horsCible: number;
 };
 
 export type SignalDraft = {
@@ -216,19 +227,54 @@ function semaineIso(d: Date): string {
   return `${date.getUTCFullYear()}-S${String(semaine).padStart(2, "0")}`;
 }
 
+/** Division NAF (2 chiffres) d'un code NAF complet. */
+function division(naf: string | null | undefined): string | null {
+  if (!naf) return null;
+  const d = naf.replace(/[^0-9]/g, "").slice(0, 2);
+  return d.length === 2 ? d : null;
+}
+
 /**
- * Rapprochement des offres sans SIRET contre le référentiel du bassin :
- * ≥ 0.88 rattachement automatique (le SIRET est écrit sur l'offre),
- * 0.62-0.88 entrée en resolution_queue + signal en attente,
- * < 0.62 rejet compté.
+ * Rapprochement des offres sans SIRET. France Travail ne publie JAMAIS le SIRET
+ * de l'employeur (vérifié : 0 offre sur 150) : ce rapprochement est donc le chemin
+ * normal de la source la plus importante du système, pas un cas limite.
+ *
+ * Deux passes, dans cet ordre :
+ *   1. contre le référentiel local (gratuit, instantané) ;
+ *   2. si aucun rattachement automatique, interrogation de SIRENE par raison
+ *      sociale + département, dont les candidats repassent par le même scoring.
+ *
+ * Mesuré sur l'Allier : la passe locale seule n'attachait que 33 offres sur 2 211,
+ * parce que le référentiel est bâti autour de l'agence et filtré par NAF alors que
+ * les employeurs sont répartis dans tout le département.
+ *
+ * Garde-fou de volumétrie : seules les offres dont le NAF (fourni par France Travail)
+ * appartient aux divisions cibles de l'agence déclenchent un appel réseau. Inutile
+ * d'interroger SIRENE pour une offre de supermarché ou d'assurance.
+ *
+ * Décisions : ≥ 0.88 rattachement automatique, 0.62-0.88 file de résolution
+ * manuelle, en dessous rejet compté.
  */
-function rapprocherOffresSansSiret(
+async function rapprocherOffresSansSiret(
   db: BetterSQLite3Database<typeof schema>,
   offres: (typeof schema.offreBrute.$inferSelect)[],
   now: Date,
-): { autos: number; ambigus: number; rejets: number } {
+): Promise<RapprochementStats> {
+  const stats: RapprochementStats = {
+    autos: 0,
+    autosViaSirene: 0,
+    ambigus: 0,
+    rejets: 0,
+    horsCible: 0,
+  };
+
   const aTraiter = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret && o.entrepriseNom);
-  if (aTraiter.length === 0) return { autos: 0, ambigus: 0, rejets: 0 };
+  if (aTraiter.length === 0) return stats;
+
+  const agence = db.select().from(schema.agence).limit(1).all()[0];
+  const divisionsCibles = new Set(
+    (agence?.nafCibles ?? []).map((n) => n.replace(/[^0-9]/g, "").slice(0, 2)),
+  );
 
   const referentiel: CandidatEtab[] = db
     .select({
@@ -241,83 +287,139 @@ function rapprocherOffresSansSiret(
     .from(schema.etablissement)
     .all();
 
-  let autos = 0;
-  let ambigus = 0;
-  let rejets = 0;
   const nowIso = now.toISOString();
 
+  const rattacher = (o: (typeof schema.offreBrute.$inferSelect), siret: string) => {
+    db.update(schema.offreBrute).set({ siret }).where(eq(schema.offreBrute.id, o.id)).run();
+    o.siret = siret; // la dérivation qui suit en profite immédiatement
+  };
+
+  const mettreEnFile = (
+    o: (typeof schema.offreBrute.$inferSelect),
+    candidats: { siret: string; denomination: string; commune: string | null; naf: string | null; similarite: number }[],
+  ) => {
+    const pendingId = `match-sig-${o.id}`;
+    db.insert(schema.signal)
+      .values({
+        id: pendingId,
+        siret: null,
+        siren: null,
+        type: "OFFRE_DIRECTE",
+        source: "francetravail",
+        occurredAt: o.datePublication,
+        ingestedAt: nowIso,
+        confidence: candidats[0]?.similarite ?? 0.7,
+        payload: {
+          intitule: o.intitule,
+          rome: o.rome,
+          typeContrat: o.typeContrat,
+          entrepriseNom: o.entrepriseNom,
+        },
+        rawRef: `pending-directe-${o.id}`,
+      })
+      .onConflictDoNothing()
+      .run();
+    db.insert(schema.resolutionQueue)
+      .values({
+        id: `match-${o.id}`,
+        source: "francetravail",
+        rawDenomination: o.entrepriseNom!,
+        rawCodePostal: o.codePostal,
+        rawNaf: (o.payload as { codeNAF?: string } | null)?.codeNAF ?? null,
+        candidats,
+        statut: "en_attente",
+        resolvedSiret: null,
+        signalId: pendingId,
+        createdAt: nowIso,
+      })
+      .onConflictDoNothing()
+      .run();
+  };
+
   for (const o of aTraiter) {
-    const resultat = matchEntity(
-      { denomination: o.entrepriseNom!, codePostal: o.codePostal },
+    const nafOffre = (o.payload as { codeNAF?: string } | null)?.codeNAF ?? null;
+    const divOffre = division(nafOffre);
+
+    // Passe 1 — référentiel local
+    const local = matchEntity(
+      { denomination: o.entrepriseNom!, codePostal: o.codePostal, naf: nafOffre },
       referentiel,
     );
+    if (local.decision === "auto") {
+      rattacher(o, local.candidat.siret);
+      stats.autos++;
+      continue;
+    }
 
-    if (resultat.decision === "auto") {
-      db.update(schema.offreBrute)
-        .set({ siret: resultat.candidat.siret })
-        .where(eq(schema.offreBrute.id, o.id))
-        .run();
-      o.siret = resultat.candidat.siret; // la dérivation qui suit en profite
-      autos++;
-    } else if (resultat.decision === "ambigu") {
-      const pendingId = `match-sig-${o.id}`;
-      db.insert(schema.signal)
-        .values({
-          id: pendingId,
-          siret: null,
-          siren: null,
-          type: "OFFRE_DIRECTE",
-          source: "francetravail",
-          occurredAt: o.datePublication,
-          ingestedAt: nowIso,
-          confidence: resultat.candidats[0]?.similarite ?? 0.7,
-          payload: { intitule: o.intitule, rome: o.rome, typeContrat: o.typeContrat, entrepriseNom: o.entrepriseNom },
-          rawRef: `pending-directe-${o.id}`,
-        })
-        .onConflictDoNothing()
-        .run();
-      db.insert(schema.resolutionQueue)
-        .values({
-          id: `match-${o.id}`,
-          source: "francetravail",
-          rawDenomination: o.entrepriseNom!,
-          rawCodePostal: o.codePostal,
-          rawNaf: null,
-          candidats: resultat.candidats.map((c) => ({
-            siret: c.siret,
-            denomination: c.denomination,
-            commune: c.commune,
-            naf: c.naf,
-            similarite: c.similarite,
-          })),
-          statut: "en_attente",
-          resolvedSiret: null,
-          signalId: pendingId,
-          createdAt: nowIso,
-        })
-        .onConflictDoNothing()
-        .run();
-      ambigus++;
+    // Hors cible ICP : on ne consomme pas d'appel réseau pour ce prospect.
+    if (divisionsCibles.size > 0 && (!divOffre || !divisionsCibles.has(divOffre))) {
+      stats.horsCible++;
+      continue;
+    }
+
+    // Passe 2 — interrogation de SIRENE
+    const departement = o.codePostal?.slice(0, 2) ?? null;
+    const candidatsDistants = departement
+      ? await candidatsSirene(o.entrepriseNom!, departement)
+      : [];
+    const distant =
+      candidatsDistants.length > 0
+        ? matchEntity(
+            { denomination: o.entrepriseNom!, codePostal: o.codePostal, naf: nafOffre },
+            candidatsDistants,
+          )
+        : null;
+
+    if (distant?.decision === "auto") {
+      await enrichirSiretsManquants(db, [distant.candidat.siret]);
+      referentiel.push(distant.candidat);
+      rattacher(o, distant.candidat.siret);
+      stats.autos++;
+      stats.autosViaSirene++;
+      continue;
+    }
+
+    // Meilleure liste de candidats disponible pour l'arbitrage humain
+    const candidats =
+      distant?.decision === "ambigu"
+        ? distant.candidats
+        : local.decision === "ambigu"
+          ? local.candidats
+          : [];
+
+    if (candidats.length > 0) {
+      mettreEnFile(
+        o,
+        candidats.map((c) => ({
+          siret: c.siret,
+          denomination: c.denomination,
+          commune: c.commune,
+          naf: c.naf,
+          similarite: c.similarite,
+        })),
+      );
+      stats.ambigus++;
     } else {
-      rejets++;
+      stats.rejets++;
     }
   }
 
-  return { autos, ambigus, rejets };
+  return stats;
 }
 
+
 /** Charge les offres réelles (hors fixtures), rapproche, dérive, insère (idempotent). */
-export function deriveEtEnregistrer(
+export async function deriveEtEnregistrer(
   db: BetterSQLite3Database<typeof schema>,
   now: Date = new Date(),
-): { derives: number; inseres: number; sansSiret: number; rapprochement: { autos: number; ambigus: number; rejets: number } } {
+): Promise<{ derives: number; inseres: number; sansSiret: number; rapprochement: RapprochementStats }> {
   const offres = db
     .select()
     .from(schema.offreBrute)
     .where(notLike(schema.offreBrute.source, "fixture:%"))
     .all();
 
-  const rapprochement = rapprocherOffresSansSiret(db, offres, now);
+  const rapprochement = await rapprocherOffresSansSiret(db, offres, now);
 
   const signaux = deriveSignaux(
     offres.map((o) => ({

@@ -36,29 +36,50 @@ Dernière mise à jour : 27 août 2026.
   `--naf=41,42` en codes complets.
 - Adapter : `src/lib/ingest/adapters/sirene.ts`.
 
-## France Travail — API Offres d'emploi v2 · **à vérifier** ⚠️
+## France Travail — API Offres d'emploi v2 · **vérifiée** ✅
 
-- **Accès** : compte gratuit sur [francetravail.io](https://francetravail.io),
-  application + souscription à l'API « Offres d'emploi v2 », OAuth2 `client_credentials`.
-- **Rien n'a pu être vérifié sans clé.** Conformément à la règle du projet,
-  `fetch()` échoue avec un message explicite
-  (`[francetravail] endpoint non vérifié, voir docs/sources.md`).
-- `normalize()` et `fixture()` sont complets (schéma Zod bâti d'après la documentation
-  publique, **à confirmer sur données réelles au premier appel authentifié**).
-- **Marche à suivre une fois la clé obtenue** :
-  1. Renseigner `FRANCETRAVAIL_CLIENT_ID` / `FRANCETRAVAIL_CLIENT_SECRET` dans `.env`.
-  2. Vérifier par un appel réel l'URL du jeton
-     (`https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire`
-     d'après la documentation — à confirmer) puis l'endpoint de recherche d'offres
-     (`https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search` — à confirmer),
-     et comparer la réponse au schéma `ftOffreSchema`.
-  3. Implémenter la boucle paginée dans `fetch()` de
-     `src/lib/ingest/adapters/francetravail.ts`, mettre à jour ce document et
-     `src/lib/ingest/registry.ts` (`etatEndpoint: "verifie"`).
-- **Limite structurelle documentée (cold start)** : une offre clôturée disparaît de
-  l'API. `OFFRE_REPUBLIEE` et la baseline 90 jours d'`OFFRE_VELOCITE` ne deviennent
-  fiables qu'après plusieurs semaines d'ingestion régulière (quotidienne idéalement).
-  Les fixtures embarquent l'historique, la démo n'est pas affectée.
+- **Accès** : compte gratuit sur [francetravail.io](https://francetravail.io), application
+  + souscription à l'API « Offres d'emploi v2 ». Quota accordé : **10 appels/seconde**.
+- **Endpoint jeton vérifié** (appel réel le 27/08/2026) :
+  `POST https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire`
+  corps `application/x-www-form-urlencoded` : `grant_type=client_credentials`,
+  `client_id`, `client_secret`, `scope=api_offresdemploiv2 o2dsoffre`
+  → `{ access_token, expires_in }`, jeton valable ≈ 1 500 s (mis en cache mémoire).
+- **Endpoint recherche vérifié** (appel réel le 27/08/2026) :
+  `GET https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search`
+  `?departement=&minCreationDate=&maxCreationDate=&range=a-b`
+- **Contraintes vérifiées, toutes découvertes par appels réels** :
+  - `range` est plafonné à **150 éléments** : `0-199` renvoie `400` ;
+  - `minCreationDate` **seul** renvoie `400` — les deux bornes sont obligatoires ;
+  - format de date accepté : `YYYY-MM-DDTHH:MM:SSZ` ;
+  - réponse paginée en **`206 Partial Content`** avec `Content-Range: offres a-b/total` ;
+  - au-delà des résultats disponibles, l'API renvoie **`204` sans corps** (géré par
+    `fetchJsonCache`, qui rendrait sinon une erreur de parsing JSON).
+- **Trois écarts majeurs entre la documentation et la réalité**, tous corrigés :
+  1. **Le SIRET de l'employeur n'est JAMAIS publié** (0 offre sur 150 observées).
+     Le rapprochement d'entité n'est donc pas un cas limite mais **le chemin normal**
+     de la source principale du système.
+  2. **`dureeTravailLibelle` n'est pas la durée du contrat** mais le temps de travail
+     hebdomadaire (« 35H/semaine »). La durée réelle est dans **`typeContratLibelle`**
+     (« CDD - 12 Mois », « Intérim - 14 Jour(s) »). Lire le mauvais champ rendait le
+     signal `CDD_COURT_REPETE` **structurellement impossible à déclencher**.
+  3. **`codeNAF` est toujours renseigné** : c'est un critère bien plus fiable que les
+     enseignes pour distinguer une offre d'entreprise d'une mission d'agence
+     (division 78 = activités liées à l'emploi). Il sert aussi de filtre ICP avant
+     tout appel réseau de résolution.
+- **DONNÉES PERSONNELLES** : la réponse contient un objet `contact` avec noms,
+  téléphones et courriels de personnes physiques (**120 offres sur 150 observées**).
+  Le projet ne collecte que des personnes morales : ce champ est **absent du schéma
+  Zod**, jamais lu, jamais stocké. `normalize()` construit l'enregistrement en liste
+  blanche et un test unitaire vérifie qu'aucune donnée de contact ne peut fuiter.
+- Adapter : `src/lib/ingest/adapters/francetravail.ts`.
+- **Limite structurelle (cold start), confirmée en production** : l'API ne renvoie que
+  les offres **actives**. Une offre clôturée disparaît. Sur un premier import, même en
+  remontant 90 jours, `OFFRE_REPUBLIEE` et `OFFRE_VELOCITE` valent **zéro** faute
+  d'historique d'observation. Ces deux signaux — les plus prédictifs du modèle —
+  ne se déclenchent qu'après plusieurs semaines d'ingestion quotidienne.
+  **Conséquence opérationnelle : il faut lancer l'ingestion quotidienne dès maintenant,
+  même si personne n'utilise encore l'outil.** Sa valeur s'accumule avec l'observation.
 
 ## DECP — marchés publics attribués · **vérifiée** ✅
 
@@ -125,3 +146,37 @@ Dernière mise à jour : 27 août 2026.
 - Les réponses brutes des API sont mises en cache disque dans `.cache/<source>/`
   (TTL 24 h) pour ne pas retaper les API pendant le développement.
   `INGEST_NO_CACHE=1` pour forcer les appels réels.
+
+## Rapprochement d'entité — mesures sur données réelles
+
+Le brief annonçait le rapprochement comme « le principal poste d'effort d'ingénierie,
+largement devant le scoring ». Les mesures sur l'Allier le confirment.
+
+Puisque France Travail ne publie aucun SIRET, **100 % des offres** doivent être
+rapprochées. Deux passes successives :
+
+1. **Référentiel local** (gratuit, instantané) — bâti par `ingest:sirene` autour de
+   l'agence et filtré par NAF.
+2. **Interrogation de SIRENE** quand la passe 1 n'aboutit pas :
+   `GET https://recherche-entreprises.api.gouv.fr/search?q=<nom>&departement=<dd>&per_page=5`
+   (endpoint vérifié le 27/08/2026). Les candidats renvoyés repassent par le même
+   scoring Jaro-Winkler + trigrammes : SIRENE apporte le rappel, notre module garde
+   la décision et la précision.
+
+Le filtre `code_postal` a été **essayé puis écarté** : trop strict, il renvoie zéro
+résultat sur des entreprises pourtant existantes, parce que le code postal de l'offre
+est celui du lieu de travail et non celui du siège.
+
+Garde-fou de volumétrie : seules les offres dont le `codeNAF` appartient aux divisions
+cibles de l'agence déclenchent un appel réseau.
+
+| Mesure (Allier, 2 211 offres sur 90 jours) | Passe locale seule | + résolution SIRENE |
+|---|---|---|
+| Rattachements automatiques | 27 | **74** (dont 31 via SIRENE) |
+| File de résolution manuelle | 152 | 13 |
+| Rejets | 821 | 37 |
+| Écartées avant appel réseau (hors ICP) | — | 882 |
+
+Les 882 offres écartées sont légitimement hors cible : grande distribution, assurance,
+hébergement médico-social. Un échantillon manuel de rejets l'a confirmé — sur 275
+rejets analysés, 262 concernaient des divisions NAF hors ICP.

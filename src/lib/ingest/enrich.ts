@@ -19,6 +19,7 @@ import * as schema from "../db/schema";
 import { effectifEstime } from "../reference/tranches";
 import { fetchJsonCache, RateLimiter } from "./http";
 import { sireneResultSchema, type SireneRaw } from "./adapters/sirene";
+import type { CandidatEtab } from "../matching/match";
 
 const BASE = "https://recherche-entreprises.api.gouv.fr";
 const limiter = new RateLimiter(5);
@@ -114,4 +115,72 @@ export function siretsOrphelins(
     .map((r) => r.siret)
     .filter((s): s is string => s != null && !connus.has(s));
   return [...new Set(orphelins)];
+}
+
+// ---------------------------------------------------------------------------
+// Résolution par interrogation de SIRENE
+// ---------------------------------------------------------------------------
+
+/**
+ * Cherche des candidats chez SIRENE à partir d'une raison sociale et d'un
+ * département.
+ *
+ * ENDPOINT VÉRIFIÉ le 27/08/2026 par appel réel :
+ *   GET https://recherche-entreprises.api.gouv.fr/search?q=<nom>&departement=<dd>&per_page=5
+ *
+ * Pourquoi ne pas se contenter du référentiel local : celui-ci est bâti autour de
+ * l'agence et filtré par NAF, il rate donc les employeurs dont le siège est ailleurs
+ * dans le département. Mesuré sur l'Allier, le rapprochement local seul n'attachait
+ * que 33 offres sur 2 211. SIRENE fait le gros du rappel, notre module de matching
+ * garde la décision et la précision.
+ *
+ * Le filtre `code_postal` a été essayé et écarté : trop strict, le code postal de
+ * l'offre est celui du lieu de travail, pas celui du siège (0 résultat sur des
+ * entreprises pourtant existantes).
+ */
+export async function candidatsSirene(
+  nom: string,
+  departement: string,
+): Promise<CandidatEtab[]> {
+  const url =
+    `${BASE}/search?q=${encodeURIComponent(nom)}` +
+    `&departement=${encodeURIComponent(departement)}&per_page=5`;
+
+  let body: unknown;
+  try {
+    body = await fetchJsonCache("sirene", url, limiter);
+  } catch {
+    return []; // une résolution ratée ne doit jamais interrompre une ingestion
+  }
+
+  const page = rechercheSchema.safeParse(body);
+  if (!page.success) return [];
+
+  const candidats: CandidatEtab[] = [];
+  for (const brut of page.data.results) {
+    const parsed = sireneResultSchema.safeParse(brut);
+    if (!parsed.success) continue;
+    const raw = parsed.data;
+    const denomination = raw.nom_raison_sociale ?? raw.nom_complet;
+    for (const e of raw.matching_etablissements) {
+      if (!e.activite_principale || e.etat_administratif === "F") continue;
+      candidats.push({
+        siret: e.siret,
+        denomination,
+        codePostal: e.code_postal,
+        commune: e.libelle_commune,
+        naf: e.activite_principale,
+      });
+    }
+  }
+  return candidats;
+}
+
+/** Insère un établissement issu d'une résolution SIRENE dans le référentiel. */
+export async function insererDepuisSirene(
+  db: BetterSQLite3Database<typeof schema>,
+  siret: string,
+): Promise<boolean> {
+  const stats = await enrichirSiretsManquants(db, [siret]);
+  return stats.ajoutes > 0;
 }

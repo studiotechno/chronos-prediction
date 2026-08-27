@@ -100,7 +100,8 @@ export async function fetchJsonCache(
     }
 
     if (res.ok) {
-      const body = await res.json();
+      // 204 No Content : fin de pagination côté France Travail, corps vide.
+      const body = res.status === 204 ? null : await res.json();
       fs.mkdirSync(path.dirname(fichier), { recursive: true });
       fs.writeFileSync(fichier, JSON.stringify({ url, fetchedAt: Date.now(), body }));
       return body;
