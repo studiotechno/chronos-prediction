@@ -21,7 +21,7 @@ export const SOURCES: SourceMeta[] = [
     descriptionFr:
       "Référentiel des établissements du bassin : SIRET, NAF, tranche d'effectif, coordonnées. API data.gouv.fr ouverte, limitée à 7 req/s.",
     sansCle: true,
-    etatEndpoint: "non_verifie",
+    etatEndpoint: "verifie",
   },
   {
     id: "francetravail",
@@ -38,7 +38,7 @@ export const SOURCES: SourceMeta[] = [
     descriptionFr:
       "Données essentielles de la commande publique. Le SIRET du titulaire est généralement présent : pas de rapprochement flou.",
     sansCle: true,
-    etatEndpoint: "non_verifie",
+    etatEndpoint: "verifie",
   },
   {
     id: "bodacc",
@@ -46,7 +46,7 @@ export const SOURCES: SourceMeta[] = [
     descriptionFr:
       "Procédures collectives (signal négatif fort), augmentations de capital, fusions. API Opendatasoft de la DILA, ouverte.",
     sansCle: true,
-    etatEndpoint: "non_verifie",
+    etatEndpoint: "verifie",
   },
   {
     id: "dares",
