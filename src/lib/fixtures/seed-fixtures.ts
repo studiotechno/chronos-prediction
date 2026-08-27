@@ -618,7 +618,7 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
 
     // ----- Signaux de cet établissement
     const estCible = secteur.id !== "tertiaire";
-    if (!chance(rng, estCible ? 0.65 : 0.25)) continue;
+    if (!chance(rng, estCible ? 0.85 : 0.3)) continue;
 
     const ageRecent = (echelle: number) =>
       Math.min(150, Math.floor(-Math.log(1 - rng()) * echelle));
@@ -639,15 +639,24 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       });
     }
 
-    const nbSignaux = estCible ? randInt(rng, 2, 9) : randInt(rng, 1, 3);
+    const nbSignaux = estCible
+      ? pickWeighted(rng, [
+          [1, 12],
+          [2, 20],
+          [3, 22],
+          [4, 17],
+          [5, 12],
+          [6, 7],
+        ] as const)
+      : randInt(rng, 1, 2);
     for (let k = 0; k < nbSignaux; k++) {
       const type = estCible
         ? pickWeighted(rng, [
-            ["OFFRE_DIRECTE", 42],
+            ["OFFRE_DIRECTE", 48],
             ["CDD_COURT_REPETE", 12],
-            ["OFFRE_REPUBLIEE", 10],
-            ["OFFRE_VELOCITE", 7],
-            ["MARCHE_ATTRIBUE", 8],
+            ["OFFRE_REPUBLIEE", 8],
+            ["OFFRE_VELOCITE", 5],
+            ["MARCHE_ATTRIBUE", 6],
             ["EFFECTIF_UP", 8],
             ["BODACC_CAPITAL", 6],
           ] as const)
@@ -742,8 +751,8 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       } else if (type === "MARCHE_ATTRIBUE") {
         const objets = OBJETS_MARCHE[secteur.id] ?? OBJETS_MARCHE.btp;
         const marche = pick(rng, objets);
-        // montants log-uniformes entre 40 k€ et 900 k€
-        const montant = Math.round(Math.exp(Math.log(40000) + rng() * (Math.log(900000) - Math.log(40000))) / 1000) * 1000;
+        // montants log-uniformes entre 40 k€ et 600 k€
+        const montant = Math.round(Math.exp(Math.log(40000) + rng() * (Math.log(600000) - Math.log(40000))) / 1000) * 1000;
         ajouteSignal({
           siret: etab.siret,
           siren,
@@ -793,7 +802,7 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   const offresCiblees = SECTEURS.filter((s) => s.id !== "tertiaire").flatMap((s) =>
     s.offres.map((o) => [o, s.poids] as const),
   );
-  for (let m = 0; m < 130; m++) {
+  for (let m = 0; m < 240; m++) {
     const commune = pickWeighted(rng, COMMUNES.map((c) => [c, c.poids] as const));
     const offre = pickWeighted(rng, offresCiblees);
     const agenceNom = pick(rng, AGENCES_INTERIM);

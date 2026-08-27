@@ -308,6 +308,24 @@ export const WEIGHT_DEFAULTS: WeightDef[] = [
     descriptionFr: "Pente de la logistique. Plus elle est faible, plus la courbe est abrupte.",
   },
   {
+    key: "sismo.rome_hors_cible",
+    value: 0.25,
+    min: 0,
+    max: 1,
+    labelFr: "Facteur ROME hors cible",
+    descriptionFr:
+      "Multiplicateur appliqué aux signaux d'offres dont le métier (ROME) n'est pas dans les cibles de l'agence. Neutralise le bruit des secteurs non intérimables (ex. cabinet de conseil).",
+  },
+  {
+    key: "sismo.marche.cpv_hors_cible",
+    value: 0.6,
+    min: 0,
+    max: 1,
+    labelFr: "Facteur CPV hors cible",
+    descriptionFr:
+      "Multiplicateur des marchés publics dont le CPV n'est ni BTP (45), ni propreté (90), ni transport (60), ni espaces verts (77), ni logistique (63).",
+  },
+  {
     key: "sismo.marche.montant_ref",
     value: 500000,
     min: 10000,
