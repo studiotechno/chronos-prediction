@@ -44,7 +44,7 @@ export const decpAdapter: SourceAdapter<DecpRaw> = {
   id: "decp",
 
   async *fetch(params: FetchParams): AsyncIterable<DecpRaw> {
-    const departement = params.departement ?? "13";
+    const departement = params.departement ?? "03";
     const depuis = new Date(Date.now() - (params.depuisJours ?? 90) * 86400000)
       .toISOString()
       .slice(0, 10);

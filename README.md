@@ -28,7 +28,7 @@ npm run demo
 ```
 
 puis ouvrir <http://localhost:3000>. La démo charge ~400 établissements et ~1100 signaux
-fictifs (bassin de Marseille, étiquetés « fixtures » en base comme dans l'UI), calcule
+fictifs (bassin de Vichy, dans l'Allier, étiquetés « fixtures » en base comme dans l'UI), calcule
 les scores et sert l'application complète.
 
 Prérequis : Node 20+ (testé sous Node 22).
@@ -43,9 +43,9 @@ Prérequis : Node 20+ (testé sous Node 22).
 | `npm run db:seed` | poids par défaut + agence + fixtures (idempotent, dates relatives au jour du seed) |
 | `npm run score` | recalcule Strate, Sismo et la table `lead` |
 | `npm run test` | Vitest — 84 tests (scoring pur, raisons, rapprochement) |
-| `npm run ingest:sirene -- --lat=43.30 --lon=5.37 --rayon=30 --naf=41,42,43,49,52` | référentiel du bassin (sans clé, 7 req/s respectées) |
-| `npm run ingest:decp -- --depuis=90d --departement=13` | marchés publics attribués (sans clé) |
-| `npm run ingest:bodacc -- --depuis=90d --departement=13` | procédures collectives + capital (sans clé) |
+| `npm run ingest:sirene -- --lat=46.13 --lon=3.43 --rayon=30 --naf=41,42,43,49,52` | référentiel du bassin (sans clé, 7 req/s respectées) |
+| `npm run ingest:decp -- --depuis=90d --departement=03` | marchés publics attribués (sans clé) |
+| `npm run ingest:bodacc -- --depuis=90d --departement=03` | procédures collectives + capital (sans clé) |
 | `npm run ingest:offres -- --depuis=14d` | offres France Travail — **clé requise, endpoint non vérifié** (voir ci-dessous) |
 | `npm run ingest:all` | les quatre, dans l'ordre |
 
@@ -88,7 +88,7 @@ et visible dans l'application sur la page **/ingestion**.
 src/lib/
   db/            schéma Drizzle (SQLite, portable Postgres : ISO 8601, JSON text, zéro SQL non portable)
   scoring/       moteur pur TS, testé sans réseau ni base — strate, sismo, final, raisons françaises
-  fixtures/      générateur déterministe du bassin de démo (RNG seedé, dates relatives)
+  fixtures/      générateur déterministe du bassin de démo — Vichy, Allier (RNG seedé, dates relatives)
   ingest/        interface SourceAdapter, exécuteur idempotent, adapters (sirene, decp, bodacc, francetravail),
                  dérivation des signaux offres (republication, vélocité, CDD courts, missions concurrentes)
   matching/      rapprochement d'entité : normalisation, Jaro-Winkler + trigrammes, blocage CP, seuils 0.62/0.88

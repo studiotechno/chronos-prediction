@@ -110,8 +110,8 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         romeCode: "N1101",
         typeContrat: "CDI",
         dureeTravailLibelle: null,
-        entreprise: { nom: "DEMO BATIMENT MEDITERRANEE", siret: "90090000100019" },
-        lieuTravail: { libelle: "MARSEILLE 11", codePostal: "13011" },
+        entreprise: { nom: "DEMO BATIMENT BOURBONNAIS", siret: "90090000100019" },
+        lieuTravail: { libelle: "VICHY", codePostal: "03200" },
       },
       {
         id: "FIX-FT-2",
@@ -120,8 +120,8 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         romeCode: "N1103",
         typeContrat: "CDD",
         dureeTravailLibelle: "2 mois",
-        entreprise: { nom: "DEMO LOGISTIQUE PROVENCE", siret: "90090000200018" },
-        lieuTravail: { libelle: "VITROLLES", codePostal: "13127" },
+        entreprise: { nom: "DEMO LOGISTIQUE ALLIER", siret: "90090000200018" },
+        lieuTravail: { libelle: "VARENNES-SUR-ALLIER", codePostal: "03150" },
       },
       {
         id: "FIX-FT-3",
@@ -130,8 +130,8 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         romeCode: "F1703",
         typeContrat: "MIS",
         dureeTravailLibelle: "1 mois",
-        entreprise: { nom: "ADECCO BTP MARSEILLE", siret: null },
-        lieuTravail: { libelle: "AUBAGNE", codePostal: "13400" },
+        entreprise: { nom: "ADECCO BTP VICHY", siret: null },
+        lieuTravail: { libelle: "CUSSET", codePostal: "03300" },
       },
     ];
   },

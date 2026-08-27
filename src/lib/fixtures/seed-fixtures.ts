@@ -1,5 +1,5 @@
 /**
- * Fixtures réalistes — bassin de Marseille.
+ * Fixtures réalistes — bassin de Vichy (Allier).
  * ~400 établissements, ~1200 signaux, générés déterministiquement (RNG seedé).
  * Les dates sont RELATIVES au moment du seed (J-2, J-15…) pour que la décroissance
  * temporelle produise le même classement crédible dans six mois.
@@ -28,27 +28,27 @@ const SEED = 20260827;
 type Commune = { nom: string; cp: string; lat: number; lon: number; poids: number };
 
 const COMMUNES: Commune[] = [
-  { nom: "Marseille 1er", cp: "13001", lat: 43.299, lon: 5.382, poids: 4 },
-  { nom: "Marseille 2e", cp: "13002", lat: 43.303, lon: 5.365, poids: 5 },
-  { nom: "Marseille 8e", cp: "13008", lat: 43.271, lon: 5.383, poids: 4 },
-  { nom: "Marseille 10e", cp: "13010", lat: 43.276, lon: 5.421, poids: 5 },
-  { nom: "Marseille 11e", cp: "13011", lat: 43.289, lon: 5.475, poids: 7 },
-  { nom: "Marseille 13e", cp: "13013", lat: 43.335, lon: 5.412, poids: 5 },
-  { nom: "Marseille 14e", cp: "13014", lat: 43.334, lon: 5.381, poids: 7 },
-  { nom: "Marseille 15e", cp: "13015", lat: 43.351, lon: 5.355, poids: 7 },
-  { nom: "Marseille 16e", cp: "13016", lat: 43.358, lon: 5.318, poids: 4 },
-  { nom: "Aubagne", cp: "13400", lat: 43.293, lon: 5.571, poids: 6 },
-  { nom: "Gémenos", cp: "13420", lat: 43.297, lon: 5.628, poids: 3 },
-  { nom: "La Ciotat", cp: "13600", lat: 43.174, lon: 5.604, poids: 3 },
-  { nom: "Vitrolles", cp: "13127", lat: 43.46, lon: 5.248, poids: 6 },
-  { nom: "Marignane", cp: "13700", lat: 43.416, lon: 5.214, poids: 4 },
-  { nom: "Les Pennes-Mirabeau", cp: "13170", lat: 43.41, lon: 5.31, poids: 3 },
-  { nom: "Châteauneuf-les-Martigues", cp: "13220", lat: 43.383, lon: 5.164, poids: 2 },
-  { nom: "Martigues", cp: "13500", lat: 43.405, lon: 5.048, poids: 3 },
-  { nom: "Fos-sur-Mer", cp: "13270", lat: 43.437, lon: 4.944, poids: 3 },
-  { nom: "Gardanne", cp: "13120", lat: 43.455, lon: 5.469, poids: 3 },
-  { nom: "Aix-en-Provence", cp: "13090", lat: 43.529, lon: 5.447, poids: 4 },
-  { nom: "Salon-de-Provence", cp: "13300", lat: 43.64, lon: 5.097, poids: 1 },
+  { nom: "Vichy", cp: "03200", lat: 46.1264, lon: 3.4258, poids: 8 },
+  { nom: "Cusset", cp: "03300", lat: 46.134, lon: 3.456, poids: 6 },
+  { nom: "Bellerive-sur-Allier", cp: "03700", lat: 46.116, lon: 3.404, poids: 5 },
+  { nom: "Abrest", cp: "03200", lat: 46.095, lon: 3.443, poids: 2 },
+  { nom: "Saint-Yorre", cp: "03270", lat: 46.066, lon: 3.464, poids: 3 },
+  { nom: "Hauterive", cp: "03270", lat: 46.089, lon: 3.448, poids: 1 },
+  { nom: "Saint-Germain-des-Fossés", cp: "03260", lat: 46.206, lon: 3.435, poids: 3 },
+  { nom: "Creuzier-le-Vieux", cp: "03300", lat: 46.155, lon: 3.44, poids: 2 },
+  { nom: "Charmeil", cp: "03110", lat: 46.17, lon: 3.4, poids: 2 },
+  { nom: "Gannat", cp: "03800", lat: 46.1, lon: 3.199, poids: 4 },
+  { nom: "Saint-Pourçain-sur-Sioule", cp: "03500", lat: 46.309, lon: 3.289, poids: 4 },
+  { nom: "Varennes-sur-Allier", cp: "03150", lat: 46.312, lon: 3.402, poids: 4 },
+  { nom: "Lapalisse", cp: "03120", lat: 46.248, lon: 3.638, poids: 2 },
+  { nom: "Le Mayet-de-Montagne", cp: "03250", lat: 46.072, lon: 3.664, poids: 1 },
+  { nom: "Bessay-sur-Allier", cp: "03340", lat: 46.442, lon: 3.363, poids: 2 },
+  { nom: "Moulins", cp: "03000", lat: 46.566, lon: 3.333, poids: 3 },
+  { nom: "Yzeure", cp: "03400", lat: 46.565, lon: 3.355, poids: 2 },
+  { nom: "Avermes", cp: "03000", lat: 46.594, lon: 3.307, poids: 1 },
+  { nom: "Dompierre-sur-Besbre", cp: "03290", lat: 46.522, lon: 3.681, poids: 2 },
+  { nom: "Commentry", cp: "03600", lat: 46.291, lon: 2.744, poids: 1 },
+  { nom: "Montluçon", cp: "03100", lat: 46.341, lon: 2.603, poids: 1 },
 ];
 
 const communeByNom = new Map(COMMUNES.map((c) => [c.nom, c]));
@@ -70,8 +70,8 @@ type Secteur = {
 };
 
 const GEO = [
-  "PROVENCE", "PHOCÉEN", "MASSILIA", "SUD", "AZUR", "MÉDITERRANÉE", "GARLABAN",
-  "CALANQUES", "HUVEAUNE", "MISTRAL", "ÉTOILE", "PRADO", "LUBERON", "CAMARGUE", "VENTOUX",
+  "BOURBONNAIS", "ALLIER", "SIOULE", "BESBRE", "THERMAL", "TRONÇAIS", "LIMAGNE",
+  "BOCAGE", "COMBRAILLE", "AUVERGNE", "SOURCES", "MONTAGNE", "BILLY", "CHANTELLE", "FORTERRE",
 ];
 
 const SECTEURS: Secteur[] = [
@@ -137,6 +137,7 @@ const SECTEURS: Secteur[] = [
     offres: [
       { intitule: "Ouvrier agroalimentaire (H/F)", rome: "H2102" },
       { intitule: "Conducteur de ligne (H/F)", rome: "H2102" },
+      { intitule: "Conducteur de ligne d'embouteillage (H/F)", rome: "H2102" },
     ],
     tranches: [["03", 15], ["11", 30], ["12", 30], ["21", 15], ["22", 10]],
   },
@@ -169,12 +170,12 @@ const SECTEURS: Secteur[] = [
 const AGENCES_INTERIM = ["Adecco", "Manpower", "Randstad", "Proman", "Crit", "Synergie", "Actual", "Temporis"];
 
 const ACHETEURS_PUBLICS = [
-  "Métropole Aix-Marseille-Provence",
-  "Ville de Marseille",
-  "Département des Bouches-du-Rhône",
-  "Grand Port Maritime de Marseille",
-  "Ville d'Aubagne",
-  "Habitat Marseille Provence",
+  "Vichy Communauté",
+  "Ville de Vichy",
+  "Conseil départemental de l'Allier",
+  "Ville de Cusset",
+  "Moulins Communauté",
+  "Allier Habitat",
 ];
 
 const OBJETS_MARCHE: Record<string, { objet: string; cpv: string }[]> = {
@@ -357,11 +358,11 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   // -------------------------------------------------------------------------
 
   // P1 — PME du BTP qui republie ses offres et vient de gagner un marché → tête de classement
-  const p1Commune = communeByNom.get("Aubagne")!;
+  const p1Commune = communeByNom.get("Cusset")!;
   const p1 = ajouteEtab({
     siren: "900100001",
     nic: "00011",
-    denomination: "BÂTIR PROVENCE",
+    denomination: "BÂTIR BOURBONNAIS",
     naf: "43.99C",
     tranche: "21",
     commune: p1Commune,
@@ -390,9 +391,9 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     occurredAt: iso(24),
     confidence: 1,
     payload: {
-      objet: "Réhabilitation de voirie — quartier de la Soude",
+      objet: "Réhabilitation de voirie — quartier des Ailes",
       montant: 480000,
-      acheteur: "Métropole Aix-Marseille-Provence",
+      acheteur: "Vichy Communauté",
       cpv: "45233140-2",
     },
   });
@@ -441,11 +442,11 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   });
 
   // P2 — logistique en croissance d'effectif → tête de classement
-  const p2Commune = communeByNom.get("Vitrolles")!;
+  const p2Commune = communeByNom.get("Varennes-sur-Allier")!;
   const p2 = ajouteEtab({
     siren: "900100002",
     nic: "00011",
-    denomination: "LOGISUD DISTRIBUTION",
+    denomination: "VAL D'ALLIER LOGISTIQUE",
     naf: "52.10B",
     tranche: "22",
     commune: p2Commune,
@@ -502,11 +503,11 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   }
 
   // P3 — bon fit structurel mais redressement judiciaire → bas de classement
-  const p3Commune = communeByNom.get("Marseille 11e")!;
+  const p3Commune = communeByNom.get("Gannat")!;
   const p3 = ajouteEtab({
     siren: "900100003",
     nic: "00011",
-    denomination: "MÉTALLERIE PHOCÉENNE",
+    denomination: "MÉTALLERIE DU BOCAGE",
     naf: "25.11Z",
     tranche: "21",
     commune: p3Commune,
@@ -520,7 +521,7 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     source: "fixture:bodacc",
     occurredAt: iso(30),
     confidence: 1,
-    payload: { procedure: "redressement judiciaire", tribunal: "Tribunal de commerce de Marseille" },
+    payload: { procedure: "redressement judiciaire", tribunal: "Tribunal de commerce de Cusset" },
   });
   ajouteSignal({
     siret: p3.siret,
@@ -533,11 +534,11 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   });
 
   // P4 — cabinet de conseil qui poste 4 offres → neutralisé par la table DARES et les ROME hors cible
-  const p4Commune = communeByNom.get("Marseille 8e")!;
+  const p4Commune = communeByNom.get("Vichy")!;
   const p4 = ajouteEtab({
     siren: "900100004",
     nic: "00011",
-    denomination: "CONSEIL AZUR STRATÉGIE",
+    denomination: "BOURBON CONSEIL STRATÉGIE",
     naf: "70.22Z",
     tranche: "12",
     commune: p4Commune,
@@ -634,7 +635,11 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
         confidence: 1,
         payload: {
           procedure: pick(rng, ["redressement judiciaire", "procédure de sauvegarde", "liquidation judiciaire"]),
-          tribunal: "Tribunal de commerce de Marseille",
+          tribunal: pick(rng, [
+            "Tribunal de commerce de Cusset",
+            "Tribunal de commerce de Moulins",
+            "Tribunal de commerce de Montluçon",
+          ]),
         },
       });
     }
@@ -849,7 +854,7 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     const variantes = [
       `STE ${cible.denomination}`,
       cible.denomination.split(" ").reverse().join(" "),
-      `${cible.denomination.split(" ")[0]} ${pick(rng, ["SERVICES", "GROUPE", "13"])}`,
+      `${cible.denomination.split(" ")[0]} ${pick(rng, ["SERVICES", "GROUPE", "03"])}`,
       cible.denomination.replace("É", "E").replace(" ", "-"),
     ];
     const rawDenomination = variantes[q % variantes.length];

@@ -3,7 +3,7 @@
  * ENDPOINT VÉRIFIÉ le 27/08/2026 par appel réel (voir docs/sources.md) :
  *   GET https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/
  *       annonces-commerciales/records?where=...&order_by=dateparution DESC&limit=&offset=
- * Filtres vérifiés : familleavis="collective", numerodepartement="13", registre like "<siren>".
+ * Filtres vérifiés : familleavis="collective", numerodepartement (vérifié sur "13", identique pour "03"), registre like "<siren>".
  * Ouverte, sans clé.
  */
 import { z } from "zod";
@@ -60,7 +60,7 @@ export const bodaccAdapter: SourceAdapter<BodaccRaw> = {
   id: "bodacc",
 
   async *fetch(params: FetchParams): AsyncIterable<BodaccRaw> {
-    const departement = params.departement ?? "13";
+    const departement = params.departement ?? "03";
     const depuis = new Date(Date.now() - (params.depuisJours ?? 90) * 86400000)
       .toISOString()
       .slice(0, 10);
@@ -148,11 +148,11 @@ export const bodaccAdapter: SourceAdapter<BodaccRaw> = {
         familleavis: "collective",
         familleavis_lib: "Procédures collectives",
         typeavis_lib: "Avis initial",
-        numerodepartement: "13",
-        tribunal: "TRIBUNAL DE COMMERCE DE MARSEILLE",
+        numerodepartement: "03",
+        tribunal: "TRIBUNAL DE COMMERCE DE CUSSET",
         commercant: "DEMO METALLERIE",
-        cp: "13011",
-        ville: "Marseille",
+        cp: "03800",
+        ville: "Gannat",
         registre: ["900 900 003", "900900003"],
         jugement: JSON.stringify({ nature: "Jugement d'ouverture d'une procédure de redressement judiciaire" }),
         modificationsgenerales: null,
@@ -163,11 +163,11 @@ export const bodaccAdapter: SourceAdapter<BodaccRaw> = {
         familleavis: "modification",
         familleavis_lib: "Modifications diverses",
         typeavis_lib: "Avis initial",
-        numerodepartement: "13",
-        tribunal: "TRIBUNAL DE COMMERCE DE MARSEILLE",
-        commercant: "DEMO LOGISTIQUE PROVENCE",
-        cp: "13127",
-        ville: "Vitrolles",
+        numerodepartement: "03",
+        tribunal: "TRIBUNAL DE COMMERCE DE CUSSET",
+        commercant: "DEMO LOGISTIQUE ALLIER",
+        cp: "03150",
+        ville: "Varennes-sur-Allier",
         registre: ["900900002"],
         jugement: null,
         modificationsgenerales: "Augmentation du capital social. Nouveau capital : 500 000 EUR",

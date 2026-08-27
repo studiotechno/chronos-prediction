@@ -1,5 +1,5 @@
 /**
- * Seed : poids par défaut, agence de démo, fixtures réalistes (bassin de Marseille).
+ * Seed : poids par défaut, agence de démo, fixtures réalistes (bassin de Vichy, Allier).
  * Idempotent : ré-exécutable sans dupliquer (upserts + unicité signal(source, raw_ref)).
  */
 import { getDb, schema } from "../src/lib/db";
@@ -22,11 +22,9 @@ for (const w of WEIGHT_DEFAULTS) {
 }
 console.log(`[seed] ${WEIGHT_DEFAULTS.length} poids`);
 
-// --- Agence de démo (mono-agence en V0)
-db.insert(schema.agence)
-  .values(AGENCE_DEMO)
-  .onConflictDoUpdate({ target: schema.agence.id, set: AGENCE_DEMO })
-  .run();
+// --- Agence de démo (mono-agence en V0 : on remplace toute agence précédente)
+db.delete(schema.agence).run();
+db.insert(schema.agence).values(AGENCE_DEMO).run();
 console.log(`[seed] agence « ${AGENCE_DEMO.nom} »`);
 
 // --- Fixtures (établissements, signaux, offres brutes, file de résolution)

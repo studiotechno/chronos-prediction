@@ -1,6 +1,6 @@
 /**
  * Ingestion DECP : marchés publics attribués (signaux MARCHE_ATTRIBUE).
- * Usage : npm run ingest:decp -- --depuis=90d --departement=13
+ * Usage : npm run ingest:decp -- --depuis=90d --departement=03
  */
 import { parseArgs } from "node:util";
 import { getDb } from "../../src/lib/db";
@@ -15,7 +15,7 @@ const { values } = parseArgs({
 });
 
 const depuisJours = values.depuis ? Number(values.depuis.replace(/d$/i, "")) : 90;
-const departement = values.departement ?? "13";
+const departement = values.departement ?? "03";
 
 console.log(`[decp] ingestion marchés attribués, exécution département ${departement}, ${depuisJours} derniers jours`);
 
