@@ -8,10 +8,11 @@
  * deviennent fiables qu'après plusieurs semaines d'ingestion régulière,
  * puisqu'une offre clôturée disparaît de l'API. Voir docs/sources.md.
  */
-import { notLike } from "drizzle-orm";
+import { eq, notLike } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import crypto from "node:crypto";
 import * as schema from "../db/schema";
+import { matchEntity, type CandidatEtab } from "../matching/match";
 
 export type OffreLike = {
   id: string;
@@ -215,16 +216,108 @@ function semaineIso(d: Date): string {
   return `${date.getUTCFullYear()}-S${String(semaine).padStart(2, "0")}`;
 }
 
-/** Charge les offres réelles (hors fixtures), dérive, insère (idempotent). */
+/**
+ * Rapprochement des offres sans SIRET contre le référentiel du bassin :
+ * ≥ 0.88 rattachement automatique (le SIRET est écrit sur l'offre),
+ * 0.62-0.88 entrée en resolution_queue + signal en attente,
+ * < 0.62 rejet compté.
+ */
+function rapprocherOffresSansSiret(
+  db: BetterSQLite3Database<typeof schema>,
+  offres: (typeof schema.offreBrute.$inferSelect)[],
+  now: Date,
+): { autos: number; ambigus: number; rejets: number } {
+  const aTraiter = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret && o.entrepriseNom);
+  if (aTraiter.length === 0) return { autos: 0, ambigus: 0, rejets: 0 };
+
+  const referentiel: CandidatEtab[] = db
+    .select({
+      siret: schema.etablissement.siret,
+      denomination: schema.etablissement.denomination,
+      codePostal: schema.etablissement.codePostal,
+      commune: schema.etablissement.commune,
+      naf: schema.etablissement.naf,
+    })
+    .from(schema.etablissement)
+    .all();
+
+  let autos = 0;
+  let ambigus = 0;
+  let rejets = 0;
+  const nowIso = now.toISOString();
+
+  for (const o of aTraiter) {
+    const resultat = matchEntity(
+      { denomination: o.entrepriseNom!, codePostal: o.codePostal },
+      referentiel,
+    );
+
+    if (resultat.decision === "auto") {
+      db.update(schema.offreBrute)
+        .set({ siret: resultat.candidat.siret })
+        .where(eq(schema.offreBrute.id, o.id))
+        .run();
+      o.siret = resultat.candidat.siret; // la dérivation qui suit en profite
+      autos++;
+    } else if (resultat.decision === "ambigu") {
+      const pendingId = `match-sig-${o.id}`;
+      db.insert(schema.signal)
+        .values({
+          id: pendingId,
+          siret: null,
+          siren: null,
+          type: "OFFRE_DIRECTE",
+          source: "francetravail",
+          occurredAt: o.datePublication,
+          ingestedAt: nowIso,
+          confidence: resultat.candidats[0]?.similarite ?? 0.7,
+          payload: { intitule: o.intitule, rome: o.rome, typeContrat: o.typeContrat, entrepriseNom: o.entrepriseNom },
+          rawRef: `pending-directe-${o.id}`,
+        })
+        .onConflictDoNothing()
+        .run();
+      db.insert(schema.resolutionQueue)
+        .values({
+          id: `match-${o.id}`,
+          source: "francetravail",
+          rawDenomination: o.entrepriseNom!,
+          rawCodePostal: o.codePostal,
+          rawNaf: null,
+          candidats: resultat.candidats.map((c) => ({
+            siret: c.siret,
+            denomination: c.denomination,
+            commune: c.commune,
+            naf: c.naf,
+            similarite: c.similarite,
+          })),
+          statut: "en_attente",
+          resolvedSiret: null,
+          signalId: pendingId,
+          createdAt: nowIso,
+        })
+        .onConflictDoNothing()
+        .run();
+      ambigus++;
+    } else {
+      rejets++;
+    }
+  }
+
+  return { autos, ambigus, rejets };
+}
+
+/** Charge les offres réelles (hors fixtures), rapproche, dérive, insère (idempotent). */
 export function deriveEtEnregistrer(
   db: BetterSQLite3Database<typeof schema>,
   now: Date = new Date(),
-): { derives: number; inseres: number; sansSiret: number } {
+): { derives: number; inseres: number; sansSiret: number; rapprochement: { autos: number; ambigus: number; rejets: number } } {
   const offres = db
     .select()
     .from(schema.offreBrute)
     .where(notLike(schema.offreBrute.source, "fixture:%"))
     .all();
+
+  const rapprochement = rapprocherOffresSansSiret(db, offres, now);
 
   const signaux = deriveSignaux(
     offres.map((o) => ({
@@ -256,5 +349,5 @@ export function deriveEtEnregistrer(
   }
 
   const sansSiret = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret).length;
-  return { derives: signaux.length, inseres, sansSiret };
+  return { derives: signaux.length, inseres, sansSiret, rapprochement };
 }

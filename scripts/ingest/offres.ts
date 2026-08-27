@@ -30,8 +30,12 @@ async function main() {
 
   const d = deriveEtEnregistrer(db);
   console.log(
+    `[francetravail] rapprochement : ${d.rapprochement.autos} automatiques, ` +
+      `${d.rapprochement.ambigus} en file de résolution, ${d.rapprochement.rejets} rejets`,
+  );
+  console.log(
     `[francetravail] dérivation : ${d.derives} signaux calculés, ${d.inseres} nouveaux insérés` +
-      (d.sansSiret > 0 ? `, ${d.sansSiret} offres sans SIRET (rapprochement : npm run resolution via l'UI)` : ""),
+      (d.sansSiret > 0 ? `, ${d.sansSiret} offres restent sans SIRET` : ""),
   );
   console.log("[francetravail] lancez `npm run score` pour recalculer les leads");
 }

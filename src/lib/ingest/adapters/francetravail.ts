@@ -66,8 +66,8 @@ function dureeContratJours(libelle: string | null | undefined): number | null {
 export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
   id: "francetravail",
 
-  // eslint-disable-next-line require-yield
-  async *fetch(_params: FetchParams): AsyncIterable<FtOffreRaw> {
+  async *fetch(params: FetchParams): AsyncIterable<FtOffreRaw> {
+    void params;
     throw new Error(
       "[francetravail] endpoint non vérifié, voir docs/sources.md — " +
         "créez un compte sur https://francetravail.io, renseignez FRANCETRAVAIL_CLIENT_ID / " +
