@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  * Une cellule foncée = présence concurrentielle forte et récente.
  */
 export default function CouverturePage() {
-  const { cellules, romes, communes, agences, maxIntensite, total } = getCouverture();
+  const { cellules, romes, communes, agences, maxIntensite, libellesRome, total } = getCouverture();
+  const libelle = (r: string) => libellesRome.get(r) ?? romeLabel(r);
   const romesAffiches = romes.slice(0, 10);
 
   return (
@@ -36,9 +37,9 @@ export default function CouverturePage() {
                   <th key={r} className="px-1.5 py-2 font-normal align-bottom min-w-[52px]">
                     <span
                       className="block text-[10px] leading-tight text-muted-foreground [writing-mode:vertical-rl] rotate-180 mx-auto h-24"
-                      title={romeLabel(r)}
+                      title={libelle(r)}
                     >
-                      {romeLabel(r)}
+                      {libelle(r)}
                     </span>
                     <span className="block text-[10px] font-mono text-muted-foreground mt-1">{r}</span>
                   </th>
@@ -65,8 +66,8 @@ export default function CouverturePage() {
                           }}
                           title={
                             cell
-                              ? `${commune} — ${romeLabel(rome)} : ${cell.nb} mission(s), intensité ${cell.intensite.toFixed(1)}`
-                              : `${commune} — ${romeLabel(rome)} : aucune mission concurrente`
+                              ? `${commune} — ${libelle(rome)} : ${cell.nb} mission(s), intensité ${cell.intensite.toFixed(1)}`
+                              : `${commune} — ${libelle(rome)} : aucune mission concurrente`
                           }
                         >
                           {cell ? cell.nb : ""}

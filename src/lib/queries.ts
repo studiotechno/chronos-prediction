@@ -135,6 +135,8 @@ export function getCouverture() {
   const demiVie = demiVieRow?.value ?? 60;
 
   const cellules = new Map<string, CelluleCouverture>();
+  /** Libellé métier tel que fourni par la source, prioritaire sur le dictionnaire local. */
+  const libellesRome = new Map<string, string>();
   const parRome = new Map<string, number>();
   const parCommune = new Map<string, number>();
   const parAgence = new Map<string, number>();
@@ -142,7 +144,13 @@ export function getCouverture() {
   for (const s of rows) {
     const commune = typeof s.payload?.commune === "string" ? (s.payload.commune as string) : "?";
     const rome = typeof s.payload?.rome === "string" ? (s.payload.rome as string) : "?";
-    const agenceNom = typeof s.payload?.agenceInterim === "string" ? (s.payload.agenceInterim as string) : "?";
+    const agenceNom =
+      typeof s.payload?.agenceInterim === "string" && s.payload.agenceInterim.trim().length > 0
+        ? (s.payload.agenceInterim as string)
+        : "Enseigne non précisée";
+    if (typeof s.payload?.romeLibelle === "string" && s.payload.romeLibelle.length > 0) {
+      libellesRome.set(rome, s.payload.romeLibelle as string);
+    }
     const ageJours = Math.max(0, (now - new Date(s.occurredAt).getTime()) / 86400000);
     const poids = Math.exp((-Math.LN2 * ageJours) / demiVie);
 
@@ -161,7 +169,7 @@ export function getCouverture() {
   const agences = [...parAgence.entries()].sort((a, b) => b[1] - a[1]);
   const maxIntensite = Math.max(0.001, ...[...cellules.values()].map((c) => c.intensite));
 
-  return { cellules, romes, communes, agences, maxIntensite, total: rows.length };
+  return { cellules, romes, communes, agences, maxIntensite, libellesRome, total: rows.length };
 }
 
 export function getResolutions() {

@@ -28,6 +28,8 @@ export type OffreLike = {
   parAgenceInterim: number;
   datePublication: string;
   closedAt: string | null;
+  /** Métadonnées de la source (codeNAF, romeLibelle) — jamais de donnée personnelle. */
+  payload?: Record<string, unknown> | null;
 };
 
 export type RapprochementStats = {
@@ -83,6 +85,7 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
       payload: {
         intitule: o.intitule,
         rome: o.rome,
+        romeLibelle: (o.payload as { romeLibelle?: string | null } | null)?.romeLibelle ?? null,
         commune: o.commune,
         codePostal: o.codePostal,
         agenceInterim: o.entrepriseNom,
@@ -435,6 +438,7 @@ export async function deriveEtEnregistrer(
       parAgenceInterim: o.parAgenceInterim,
       datePublication: o.datePublication,
       closedAt: o.closedAt,
+      payload: o.payload,
     })),
     now,
   );

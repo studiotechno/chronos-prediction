@@ -37,6 +37,8 @@ export const ftOffreSchema = z.object({
   intitule: z.string(),
   dateCreation: z.string(),
   romeCode: z.string().nullish(),
+  /** Libellé métier fourni par la source : évite de maintenir un dictionnaire ROME. */
+  romeLibelle: z.string().nullish(),
   typeContrat: z.string().nullish(),
   /** Porte la durée du contrat : « CDD - 12 Mois », « Intérim - 14 Jour(s) », « CDI ». */
   typeContratLibelle: z.string().nullish(),
@@ -225,7 +227,7 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
           datePublication: raw.dateCreation,
           source: "francetravail",
           // Liste blanche stricte : aucune donnée de contact (personne physique).
-          payload: { codeNAF: raw.codeNAF ?? null },
+          payload: { codeNAF: raw.codeNAF ?? null, romeLibelle: raw.romeLibelle ?? null },
         },
       },
     ];
@@ -239,6 +241,7 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         intitule: "Cariste CACES 3 (H/F)",
         dateCreation: depuis(15),
         romeCode: "N1101",
+        romeLibelle: "Conduite d'engins de manutention",
         typeContrat: "CDI",
         typeContratLibelle: "CDI",
         codeNAF: "43.99C",
@@ -250,6 +253,7 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         intitule: "Préparateur de commandes (H/F)",
         dateCreation: depuis(4),
         romeCode: "N1103",
+        romeLibelle: "Magasinage et préparation de commandes",
         typeContrat: "CDD",
         typeContratLibelle: "CDD - 2 Mois",
         codeNAF: "52.10B",
@@ -266,6 +270,7 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
         intitule: "Maçon (H/F)",
         dateCreation: depuis(2),
         romeCode: "F1703",
+        romeLibelle: "Maçonnerie",
         typeContrat: "MIS",
         typeContratLibelle: "Intérim - 1 Mois",
         codeNAF: "78.20Z",
