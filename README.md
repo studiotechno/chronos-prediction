@@ -101,9 +101,20 @@ DATABASE_URL=postgresql://postgres:<mdp>@db.<ref>.supabase.co:5432/postgres
 ```
 
 Cet hôte ne résout qu'en **IPv6**. Depuis un réseau ou un hébergeur sans IPv6
-(Vercel, par exemple), utiliser l'URL du **pooler en mode transaction** (port 6543) :
-le code y désactive automatiquement les requêtes préparées. Les migrations passent par
-la connexion directe.
+(Vercel, ou **les runners GitHub Actions**), utiliser l'URL du **pooler en mode
+transaction** (port 6543) : le code y désactive automatiquement les requêtes préparées.
+Les migrations passent par la connexion directe.
+
+```
+postgresql://postgres.<ref>:<mdp>@aws-1-<region>.pooler.supabase.com:6543/postgres
+```
+
+Deux pièges vérifiés le 28/08/2026 : le préfixe est **`aws-1-`** sur les projets récents
+(`aws-0-` sur les anciens), et **la région du pooler n'est pas forcément celle qu'on
+déduit de l'hôte direct**. Le plus sûr est de copier l'URL depuis *Project settings →
+Database → Connection string → Transaction pooler* ; en cas de doute, un mauvais couple
+préfixe/région répond explicitement « tenant/user … not found », ce qui permet de tester
+sans risque.
 
 ```bash
 npm run db:migrate
