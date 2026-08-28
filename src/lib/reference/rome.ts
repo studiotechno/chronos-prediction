@@ -26,7 +26,23 @@ export const ROME_LABELS: Record<string, string> = {
   N1103: "Magasinage et préparation de commandes",
   N1105: "Manutention manuelle de charges",
   N4101: "Conduite de transport de marchandises",
+  N4103: "Conduite de transport en commun de personnes",
   N4105: "Conduite et livraison par tournées",
+  A1203: "Entretien des espaces verts",
+  A1416: "Polyculture, élevage",
+  D1507: "Mise en rayon libre-service",
+  F1503: "Réalisation de charpentes",
+  F1606: "Peinture en bâtiment",
+  F1608: "Pose de revêtements (sols, carrelage)",
+  F1610: "Couverture, étanchéité",
+  G1602: "Personnel de cuisine",
+  G1605: "Plonge en restauration",
+  K2303: "Nettoyage des espaces urbains, déchets",
+  K2503: "Sécurité et surveillance privées",
+  N1102: "Déménagement",
+  H2101: "Abattage et découpe des viandes",
+  H3301: "Conduite d'équipement de conditionnement",
+  H3303: "Préparation de matières et produits industriels",
 };
 
 export function romeLabel(rome: string): string {

@@ -1,0 +1,813 @@
+# Enquête Besoins en Main-d'Œuvre 2026 (France Travail), agrégée par département × famille de métiers FAP.
+# Source : Base-open-data-BMO-2026.xlsx (francetravail.org, open data), lue le 28/08/2026 ; somme des bassins d'emploi.
+# projets = projets de recrutement déclarés ; difficiles = jugés difficiles ; saisonniers = liés à une activité saisonnière.
+# Les cellules secrétisées (« * ») de la source sont ignorées : les totaux sont des minorants.
+dept;famille;libelle;projets;difficiles;saisonniers
+01;A;Fonctions administratives;469;159;52
+01;C;Fonctions d'encadrement;817;397;181
+01;I;Ouvriers des secteurs de l'industrie;2267;1339;382
+01;O;Ouvriers de la construction et du bâtiment;1053;701;110
+01;S;Fonctions sociales et médico-sociales;2193;1640;713
+01;T;Autres techniciens et employés;377;231;25
+01;V;Fonctions liées à la vente, au tourisme et aux services;4050;1813;1140
+01;Z;Autres métiers;1664;1141;711
+02;A;Fonctions administratives;424;121;44
+02;C;Fonctions d'encadrement;521;195;96
+02;I;Ouvriers des secteurs de l'industrie;1489;813;498
+02;O;Ouvriers de la construction et du bâtiment;442;260;38
+02;S;Fonctions sociales et médico-sociales;1294;498;433
+02;T;Autres techniciens et employés;194;118;18
+02;V;Fonctions liées à la vente, au tourisme et aux services;3591;1210;853
+02;Z;Autres métiers;5133;1709;3775
+03;A;Fonctions administratives;218;80;41
+03;C;Fonctions d'encadrement;566;245;248
+03;I;Ouvriers des secteurs de l'industrie;931;472;152
+03;O;Ouvriers de la construction et du bâtiment;511;368;61
+03;S;Fonctions sociales et médico-sociales;760;482;166
+03;T;Autres techniciens et employés;142;57;0
+03;V;Fonctions liées à la vente, au tourisme et aux services;3280;1386;1030
+03;Z;Autres métiers;961;512;443
+04;A;Fonctions administratives;339;118;236
+04;C;Fonctions d'encadrement;410;103;132
+04;I;Ouvriers des secteurs de l'industrie;480;224;180
+04;O;Ouvriers de la construction et du bâtiment;406;150;59
+04;S;Fonctions sociales et médico-sociales;1022;541;519
+04;T;Autres techniciens et employés;58;26;0
+04;V;Fonctions liées à la vente, au tourisme et aux services;3742;1440;2448
+04;Z;Autres métiers;1969;456;1633
+05;A;Fonctions administratives;420;144;258
+05;C;Fonctions d'encadrement;533;253;389
+05;I;Ouvriers des secteurs de l'industrie;523;264;158
+05;O;Ouvriers de la construction et du bâtiment;854;325;179
+05;S;Fonctions sociales et médico-sociales;1069;706;642
+05;T;Autres techniciens et employés;35;14;0
+05;V;Fonctions liées à la vente, au tourisme et aux services;4299;1456;3365
+05;Z;Autres métiers;1491;463;1165
+06;A;Fonctions administratives;2329;686;548
+06;C;Fonctions d'encadrement;4742;1661;527
+06;I;Ouvriers des secteurs de l'industrie;2534;1022;773
+06;O;Ouvriers de la construction et du bâtiment;2243;1126;160
+06;S;Fonctions sociales et médico-sociales;5462;2668;1350
+06;T;Autres techniciens et employés;487;287;0
+06;V;Fonctions liées à la vente, au tourisme et aux services;27391;10965;14215
+06;Z;Autres métiers;4287;1640;2238
+07;A;Fonctions administratives;227;27;96
+07;C;Fonctions d'encadrement;561;184;224
+07;I;Ouvriers des secteurs de l'industrie;895;467;317
+07;O;Ouvriers de la construction et du bâtiment;440;281;16
+07;S;Fonctions sociales et médico-sociales;1326;808;639
+07;T;Autres techniciens et employés;103;83;0
+07;V;Fonctions liées à la vente, au tourisme et aux services;3966;1515;2529
+07;Z;Autres métiers;2586;1131;2136
+08;A;Fonctions administratives;170;39;50
+08;C;Fonctions d'encadrement;139;81;6
+08;I;Ouvriers des secteurs de l'industrie;791;322;133
+08;O;Ouvriers de la construction et du bâtiment;391;248;44
+08;S;Fonctions sociales et médico-sociales;737;395;264
+08;T;Autres techniciens et employés;69;23;9
+08;V;Fonctions liées à la vente, au tourisme et aux services;2073;989;443
+08;Z;Autres métiers;787;207;403
+09;A;Fonctions administratives;312;114;77
+09;C;Fonctions d'encadrement;317;106;38
+09;I;Ouvriers des secteurs de l'industrie;537;267;56
+09;O;Ouvriers de la construction et du bâtiment;181;108;40
+09;S;Fonctions sociales et médico-sociales;874;571;287
+09;T;Autres techniciens et employés;13;13;0
+09;V;Fonctions liées à la vente, au tourisme et aux services;1872;610;1122
+09;Z;Autres métiers;1387;269;962
+10;A;Fonctions administratives;233;74;39
+10;C;Fonctions d'encadrement;335;113;52
+10;I;Ouvriers des secteurs de l'industrie;1059;533;374
+10;O;Ouvriers de la construction et du bâtiment;432;282;46
+10;S;Fonctions sociales et médico-sociales;994;428;337
+10;T;Autres techniciens et employés;137;63;40
+10;V;Fonctions liées à la vente, au tourisme et aux services;3316;1331;1269
+10;Z;Autres métiers;6895;2294;6266
+11;A;Fonctions administratives;420;146;172
+11;C;Fonctions d'encadrement;472;105;179
+11;I;Ouvriers des secteurs de l'industrie;497;283;199
+11;O;Ouvriers de la construction et du bâtiment;333;176;5
+11;S;Fonctions sociales et médico-sociales;1239;599;275
+11;T;Autres techniciens et employés;94;86;5
+11;V;Fonctions liées à la vente, au tourisme et aux services;5890;2182;3820
+11;Z;Autres métiers;3623;1202;2728
+12;A;Fonctions administratives;485;156;133
+12;C;Fonctions d'encadrement;336;97;55
+12;I;Ouvriers des secteurs de l'industrie;882;620;89
+12;O;Ouvriers de la construction et du bâtiment;613;439;42
+12;S;Fonctions sociales et médico-sociales;1148;782;548
+12;T;Autres techniciens et employés;116;38;16
+12;V;Fonctions liées à la vente, au tourisme et aux services;2937;1164;1546
+12;Z;Autres métiers;1469;695;944
+13;A;Fonctions administratives;3853;1153;646
+13;C;Fonctions d'encadrement;9036;2056;2036
+13;I;Ouvriers des secteurs de l'industrie;4852;2035;1239
+13;O;Ouvriers de la construction et du bâtiment;3772;1643;372
+13;S;Fonctions sociales et médico-sociales;9292;4027;2031
+13;T;Autres techniciens et employés;2169;1271;34
+13;V;Fonctions liées à la vente, au tourisme et aux services;28275;11069;9552
+13;Z;Autres métiers;12134;3954;7622
+14;A;Fonctions administratives;1193;275;277
+14;C;Fonctions d'encadrement;1920;415;808
+14;I;Ouvriers des secteurs de l'industrie;2247;896;485
+14;O;Ouvriers de la construction et du bâtiment;1225;738;35
+14;S;Fonctions sociales et médico-sociales;4200;1790;1622
+14;T;Autres techniciens et employés;300;114;12
+14;V;Fonctions liées à la vente, au tourisme et aux services;11921;5863;5058
+14;Z;Autres métiers;3725;1296;1588
+15;A;Fonctions administratives;189;65;81
+15;C;Fonctions d'encadrement;118;101;12
+15;I;Ouvriers des secteurs de l'industrie;392;212;67
+15;O;Ouvriers de la construction et du bâtiment;478;440;0
+15;S;Fonctions sociales et médico-sociales;556;361;117
+15;T;Autres techniciens et employés;66;39;0
+15;V;Fonctions liées à la vente, au tourisme et aux services;2138;953;1235
+15;Z;Autres métiers;604;432;279
+16;A;Fonctions administratives;388;69;43
+16;C;Fonctions d'encadrement;805;207;94
+16;I;Ouvriers des secteurs de l'industrie;1197;487;121
+16;O;Ouvriers de la construction et du bâtiment;483;355;64
+16;S;Fonctions sociales et médico-sociales;1448;1122;293
+16;T;Autres techniciens et employés;91;43;0
+16;V;Fonctions liées à la vente, au tourisme et aux services;4102;1962;1188
+16;Z;Autres métiers;3356;1698;2616
+17;A;Fonctions administratives;1170;364;522
+17;C;Fonctions d'encadrement;1638;461;470
+17;I;Ouvriers des secteurs de l'industrie;2234;1214;379
+17;O;Ouvriers de la construction et du bâtiment;1152;797;188
+17;S;Fonctions sociales et médico-sociales;3520;2006;1245
+17;T;Autres techniciens et employés;404;173;0
+17;V;Fonctions liées à la vente, au tourisme et aux services;15548;7615;10484
+17;Z;Autres métiers;7672;3210;6099
+18;A;Fonctions administratives;382;256;203
+18;C;Fonctions d'encadrement;650;212;70
+18;I;Ouvriers des secteurs de l'industrie;712;412;77
+18;O;Ouvriers de la construction et du bâtiment;266;239;5
+18;S;Fonctions sociales et médico-sociales;888;322;124
+18;T;Autres techniciens et employés;134;99;9
+18;V;Fonctions liées à la vente, au tourisme et aux services;2552;1130;820
+18;Z;Autres métiers;2721;1235;1749
+19;A;Fonctions administratives;457;239;36
+19;C;Fonctions d'encadrement;519;190;191
+19;I;Ouvriers des secteurs de l'industrie;1544;1186;687
+19;O;Ouvriers de la construction et du bâtiment;347;279;33
+19;S;Fonctions sociales et médico-sociales;1114;841;186
+19;T;Autres techniciens et employés;128;69;13
+19;V;Fonctions liées à la vente, au tourisme et aux services;2477;1368;975
+19;Z;Autres métiers;2181;1240;1532
+21;A;Fonctions administratives;1089;328;190
+21;C;Fonctions d'encadrement;1253;440;159
+21;I;Ouvriers des secteurs de l'industrie;1395;823;145
+21;O;Ouvriers de la construction et du bâtiment;930;594;33
+21;S;Fonctions sociales et médico-sociales;1787;862;386
+21;T;Autres techniciens et employés;323;165;0
+21;V;Fonctions liées à la vente, au tourisme et aux services;7662;3287;2435
+21;Z;Autres métiers;5162;2387;3676
+22;A;Fonctions administratives;784;247;231
+22;C;Fonctions d'encadrement;1178;428;235
+22;I;Ouvriers des secteurs de l'industrie;2297;1362;773
+22;O;Ouvriers de la construction et du bâtiment;1190;807;75
+22;S;Fonctions sociales et médico-sociales;2659;1189;1105
+22;T;Autres techniciens et employés;168;110;0
+22;V;Fonctions liées à la vente, au tourisme et aux services;8117;3703;4635
+22;Z;Autres métiers;5301;2883;3430
+23;A;Fonctions administratives;74;27;21
+23;C;Fonctions d'encadrement;170;80;50
+23;I;Ouvriers des secteurs de l'industrie;284;196;6
+23;O;Ouvriers de la construction et du bâtiment;267;238;0
+23;S;Fonctions sociales et médico-sociales;638;406;140
+23;T;Autres techniciens et employés;5;5;0
+23;V;Fonctions liées à la vente, au tourisme et aux services;768;398;348
+23;Z;Autres métiers;477;230;239
+24;A;Fonctions administratives;441;164;205
+24;C;Fonctions d'encadrement;616;184;65
+24;I;Ouvriers des secteurs de l'industrie;1173;774;309
+24;O;Ouvriers de la construction et du bâtiment;1123;915;40
+24;S;Fonctions sociales et médico-sociales;1878;1254;714
+24;T;Autres techniciens et employés;164;105;0
+24;V;Fonctions liées à la vente, au tourisme et aux services;7064;3896;3769
+24;Z;Autres métiers;4026;1484;3260
+25;A;Fonctions administratives;672;214;55
+25;C;Fonctions d'encadrement;1196;269;449
+25;I;Ouvriers des secteurs de l'industrie;1840;852;321
+25;O;Ouvriers de la construction et du bâtiment;998;645;62
+25;S;Fonctions sociales et médico-sociales;2524;1322;175
+25;T;Autres techniciens et employés;217;113;17
+25;V;Fonctions liées à la vente, au tourisme et aux services;6418;3111;1444
+25;Z;Autres métiers;1170;469;218
+26;A;Fonctions administratives;675;153;186
+26;C;Fonctions d'encadrement;1461;423;637
+26;I;Ouvriers des secteurs de l'industrie;2504;1206;737
+26;O;Ouvriers de la construction et du bâtiment;724;536;56
+26;S;Fonctions sociales et médico-sociales;1439;674;453
+26;T;Autres techniciens et employés;542;440;19
+26;V;Fonctions liées à la vente, au tourisme et aux services;4886;1950;2420
+26;Z;Autres métiers;6212;2255;4742
+27;A;Fonctions administratives;528;45;110
+27;C;Fonctions d'encadrement;767;227;177
+27;I;Ouvriers des secteurs de l'industrie;1583;621;408
+27;O;Ouvriers de la construction et du bâtiment;1007;660;72
+27;S;Fonctions sociales et médico-sociales;1875;1190;349
+27;T;Autres techniciens et employés;199;109;0
+27;V;Fonctions liées à la vente, au tourisme et aux services;4649;1937;1367
+27;Z;Autres métiers;2092;996;736
+28;A;Fonctions administratives;466;164;41
+28;C;Fonctions d'encadrement;852;364;111
+28;I;Ouvriers des secteurs de l'industrie;1065;511;111
+28;O;Ouvriers de la construction et du bâtiment;861;580;25
+28;S;Fonctions sociales et médico-sociales;1058;365;213
+28;T;Autres techniciens et employés;231;84;0
+28;V;Fonctions liées à la vente, au tourisme et aux services;3504;1333;882
+28;Z;Autres métiers;2469;1151;1312
+29;A;Fonctions administratives;1339;231;281
+29;C;Fonctions d'encadrement;2188;330;403
+29;I;Ouvriers des secteurs de l'industrie;3964;1809;1170
+29;O;Ouvriers de la construction et du bâtiment;1705;1267;221
+29;S;Fonctions sociales et médico-sociales;5095;2345;1980
+29;T;Autres techniciens et employés;497;330;14
+29;V;Fonctions liées à la vente, au tourisme et aux services;14485;6357;7544
+29;Z;Autres métiers;6479;3041;4508
+2A;A;Fonctions administratives;395;152;236
+2A;C;Fonctions d'encadrement;467;171;125
+2A;I;Ouvriers des secteurs de l'industrie;403;273;267
+2A;O;Ouvriers de la construction et du bâtiment;714;418;112
+2A;S;Fonctions sociales et médico-sociales;657;331;326
+2A;T;Autres techniciens et employés;97;76;0
+2A;V;Fonctions liées à la vente, au tourisme et aux services;7469;3273;5855
+2A;Z;Autres métiers;1390;615;896
+2B;A;Fonctions administratives;196;61;33
+2B;C;Fonctions d'encadrement;455;186;130
+2B;I;Ouvriers des secteurs de l'industrie;667;440;300
+2B;O;Ouvriers de la construction et du bâtiment;840;637;38
+2B;S;Fonctions sociales et médico-sociales;558;375;218
+2B;T;Autres techniciens et employés;87;65;8
+2B;V;Fonctions liées à la vente, au tourisme et aux services;5732;2867;4277
+2B;Z;Autres métiers;2680;1247;1923
+30;A;Fonctions administratives;979;210;258
+30;C;Fonctions d'encadrement;1518;274;465
+30;I;Ouvriers des secteurs de l'industrie;1638;717;237
+30;O;Ouvriers de la construction et du bâtiment;1006;641;97
+30;S;Fonctions sociales et médico-sociales;2315;1154;608
+30;T;Autres techniciens et employés;285;116;47
+30;V;Fonctions liées à la vente, au tourisme et aux services;8917;3342;4039
+30;Z;Autres métiers;5632;1143;4106
+31;A;Fonctions administratives;3146;754;207
+31;C;Fonctions d'encadrement;7826;2128;1334
+31;I;Ouvriers des secteurs de l'industrie;3835;2253;193
+31;O;Ouvriers de la construction et du bâtiment;2379;1146;221
+31;S;Fonctions sociales et médico-sociales;6529;3259;1987
+31;T;Autres techniciens et employés;1601;976;33
+31;V;Fonctions liées à la vente, au tourisme et aux services;17166;6461;3421
+31;Z;Autres métiers;3248;1428;725
+32;A;Fonctions administratives;214;20;31
+32;C;Fonctions d'encadrement;294;109;62
+32;I;Ouvriers des secteurs de l'industrie;646;190;192
+32;O;Ouvriers de la construction et du bâtiment;295;155;0
+32;S;Fonctions sociales et médico-sociales;818;451;265
+32;T;Autres techniciens et employés;108;60;0
+32;V;Fonctions liées à la vente, au tourisme et aux services;1654;760;727
+32;Z;Autres métiers;2616;1081;2021
+33;A;Fonctions administratives;2579;890;408
+33;C;Fonctions d'encadrement;5849;2106;535
+33;I;Ouvriers des secteurs de l'industrie;4328;2304;883
+33;O;Ouvriers de la construction et du bâtiment;3475;2225;167
+33;S;Fonctions sociales et médico-sociales;7735;4342;1973
+33;T;Autres techniciens et employés;1289;857;12
+33;V;Fonctions liées à la vente, au tourisme et aux services;26657;12471;9162
+33;Z;Autres métiers;15133;6382;10642
+34;A;Fonctions administratives;2135;338;589
+34;C;Fonctions d'encadrement;4125;1153;761
+34;I;Ouvriers des secteurs de l'industrie;2101;1076;532
+34;O;Ouvriers de la construction et du bâtiment;1241;684;144
+34;S;Fonctions sociales et médico-sociales;4268;1920;1396
+34;T;Autres techniciens et employés;718;448;12
+34;V;Fonctions liées à la vente, au tourisme et aux services;17162;6484;8156
+34;Z;Autres métiers;5602;1648;3995
+35;A;Fonctions administratives;1895;607;310
+35;C;Fonctions d'encadrement;4430;1273;1019
+35;I;Ouvriers des secteurs de l'industrie;4897;2893;1271
+35;O;Ouvriers de la construction et du bâtiment;2098;1465;221
+35;S;Fonctions sociales et médico-sociales;6364;3759;2458
+35;T;Autres techniciens et employés;731;427;42
+35;V;Fonctions liées à la vente, au tourisme et aux services;13641;6682;5136
+35;Z;Autres métiers;5832;2724;2639
+36;A;Fonctions administratives;328;114;7
+36;C;Fonctions d'encadrement;485;103;87
+36;I;Ouvriers des secteurs de l'industrie;686;213;23
+36;O;Ouvriers de la construction et du bâtiment;408;238;11
+36;S;Fonctions sociales et médico-sociales;927;358;104
+36;T;Autres techniciens et employés;249;40;0
+36;V;Fonctions liées à la vente, au tourisme et aux services;1657;592;562
+36;Z;Autres métiers;1095;371;573
+37;A;Fonctions administratives;1103;306;190
+37;C;Fonctions d'encadrement;2161;615;169
+37;I;Ouvriers des secteurs de l'industrie;1784;967;118
+37;O;Ouvriers de la construction et du bâtiment;979;554;6
+37;S;Fonctions sociales et médico-sociales;3546;1656;1182
+37;T;Autres techniciens et employés;522;264;29
+37;V;Fonctions liées à la vente, au tourisme et aux services;7378;2989;2435
+37;Z;Autres métiers;5680;2331;3746
+38;A;Fonctions administratives;1654;482;248
+38;C;Fonctions d'encadrement;4147;1559;936
+38;I;Ouvriers des secteurs de l'industrie;4460;2156;730
+38;O;Ouvriers de la construction et du bâtiment;2469;1958;152
+38;S;Fonctions sociales et médico-sociales;4481;2687;1266
+38;T;Autres techniciens et employés;1392;786;56
+38;V;Fonctions liées à la vente, au tourisme et aux services;12414;4718;4349
+38;Z;Autres métiers;4649;2202;1794
+39;A;Fonctions administratives;357;91;92
+39;C;Fonctions d'encadrement;323;159;98
+39;I;Ouvriers des secteurs de l'industrie;1022;584;186
+39;O;Ouvriers de la construction et du bâtiment;568;369;12
+39;S;Fonctions sociales et médico-sociales;1192;714;322
+39;T;Autres techniciens et employés;115;64;0
+39;V;Fonctions liées à la vente, au tourisme et aux services;2866;1319;1641
+39;Z;Autres métiers;1336;519;648
+40;A;Fonctions administratives;694;105;306
+40;C;Fonctions d'encadrement;1123;399;406
+40;I;Ouvriers des secteurs de l'industrie;2431;1266;1138
+40;O;Ouvriers de la construction et du bâtiment;752;483;64
+40;S;Fonctions sociales et médico-sociales;2661;1254;982
+40;T;Autres techniciens et employés;166;78;12
+40;V;Fonctions liées à la vente, au tourisme et aux services;10263;5019;7017
+40;Z;Autres métiers;5871;2486;4270
+41;A;Fonctions administratives;328;113;35
+41;C;Fonctions d'encadrement;495;239;9
+41;I;Ouvriers des secteurs de l'industrie;1234;613;108
+41;O;Ouvriers de la construction et du bâtiment;563;378;0
+41;S;Fonctions sociales et médico-sociales;1560;662;472
+41;T;Autres techniciens et employés;288;184;0
+41;V;Fonctions liées à la vente, au tourisme et aux services;3978;1397;1415
+41;Z;Autres métiers;2784;1036;1725
+42;A;Fonctions administratives;694;224;41
+42;C;Fonctions d'encadrement;1073;409;253
+42;I;Ouvriers des secteurs de l'industrie;2785;1258;489
+42;O;Ouvriers de la construction et du bâtiment;1559;1025;112
+42;S;Fonctions sociales et médico-sociales;2789;1965;1124
+42;T;Autres techniciens et employés;455;353;7
+42;V;Fonctions liées à la vente, au tourisme et aux services;5575;2656;1441
+42;Z;Autres métiers;2489;875;1471
+43;A;Fonctions administratives;188;58;47
+43;C;Fonctions d'encadrement;154;75;11
+43;I;Ouvriers des secteurs de l'industrie;1504;497;772
+43;O;Ouvriers de la construction et du bâtiment;341;275;27
+43;S;Fonctions sociales et médico-sociales;739;508;421
+43;T;Autres techniciens et employés;65;13;18
+43;V;Fonctions liées à la vente, au tourisme et aux services;2004;822;1025
+43;Z;Autres métiers;785;354;339
+44;A;Fonctions administratives;3020;942;502
+44;C;Fonctions d'encadrement;6272;2212;956
+44;I;Ouvriers des secteurs de l'industrie;5570;3402;688
+44;O;Ouvriers de la construction et du bâtiment;2707;1841;125
+44;S;Fonctions sociales et médico-sociales;6781;4010;2032
+44;T;Autres techniciens et employés;1918;1188;32
+44;V;Fonctions liées à la vente, au tourisme et aux services;20664;10247;6330
+44;Z;Autres métiers;9524;4374;5083
+45;A;Fonctions administratives;1004;315;65
+45;C;Fonctions d'encadrement;1824;508;84
+45;I;Ouvriers des secteurs de l'industrie;2179;968;310
+45;O;Ouvriers de la construction et du bâtiment;1346;698;125
+45;S;Fonctions sociales et médico-sociales;2747;876;318
+45;T;Autres techniciens et employés;586;444;67
+45;V;Fonctions liées à la vente, au tourisme et aux services;6511;2733;1512
+45;Z;Autres métiers;3821;1516;1723
+46;A;Fonctions administratives;292;86;48
+46;C;Fonctions d'encadrement;364;178;26
+46;I;Ouvriers des secteurs de l'industrie;505;368;154
+46;O;Ouvriers de la construction et du bâtiment;300;187;38
+46;S;Fonctions sociales et médico-sociales;638;356;166
+46;T;Autres techniciens et employés;67;26;6
+46;V;Fonctions liées à la vente, au tourisme et aux services;2905;1224;1921
+46;Z;Autres métiers;1135;425;727
+47;A;Fonctions administratives;278;64;31
+47;C;Fonctions d'encadrement;387;124;57
+47;I;Ouvriers des secteurs de l'industrie;1519;689;641
+47;O;Ouvriers de la construction et du bâtiment;552;286;97
+47;S;Fonctions sociales et médico-sociales;1286;661;545
+47;T;Autres techniciens et employés;122;75;21
+47;V;Fonctions liées à la vente, au tourisme et aux services;3226;1650;1207
+47;Z;Autres métiers;7317;3383;6059
+48;A;Fonctions administratives;131;54;78
+48;C;Fonctions d'encadrement;63;36;14
+48;I;Ouvriers des secteurs de l'industrie;186;155;79
+48;O;Ouvriers de la construction et du bâtiment;146;87;13
+48;S;Fonctions sociales et médico-sociales;512;298;256
+48;T;Autres techniciens et employés;12;5;0
+48;V;Fonctions liées à la vente, au tourisme et aux services;1558;606;1071
+48;Z;Autres métiers;528;131;250
+49;A;Fonctions administratives;1158;363;149
+49;C;Fonctions d'encadrement;1839;484;240
+49;I;Ouvriers des secteurs de l'industrie;4122;2339;951
+49;O;Ouvriers de la construction et du bâtiment;1562;1190;114
+49;S;Fonctions sociales et médico-sociales;5002;2801;1832
+49;T;Autres techniciens et employés;611;386;54
+49;V;Fonctions liées à la vente, au tourisme et aux services;8997;3746;2615
+49;Z;Autres métiers;10927;5431;8520
+50;A;Fonctions administratives;555;153;140
+50;C;Fonctions d'encadrement;753;388;50
+50;I;Ouvriers des secteurs de l'industrie;2290;1474;218
+50;O;Ouvriers de la construction et du bâtiment;1308;1098;28
+50;S;Fonctions sociales et médico-sociales;1888;1188;569
+50;T;Autres techniciens et employés;342;285;0
+50;V;Fonctions liées à la vente, au tourisme et aux services;6841;3142;2866
+50;Z;Autres métiers;3668;1903;2187
+51;A;Fonctions administratives;787;198;96
+51;C;Fonctions d'encadrement;1057;400;173
+51;I;Ouvriers des secteurs de l'industrie;2323;1011;710
+51;O;Ouvriers de la construction et du bâtiment;929;559;61
+51;S;Fonctions sociales et médico-sociales;1598;715;427
+51;T;Autres techniciens et employés;397;253;17
+51;V;Fonctions liées à la vente, au tourisme et aux services;5670;2127;1855
+51;Z;Autres métiers;13725;3933;11865
+52;A;Fonctions administratives;157;23;0
+52;C;Fonctions d'encadrement;155;72;44
+52;I;Ouvriers des secteurs de l'industrie;398;142;76
+52;O;Ouvriers de la construction et du bâtiment;170;131;26
+52;S;Fonctions sociales et médico-sociales;561;428;147
+52;T;Autres techniciens et employés;94;63;0
+52;V;Fonctions liées à la vente, au tourisme et aux services;1398;692;381
+52;Z;Autres métiers;812;440;432
+53;A;Fonctions administratives;437;136;51
+53;C;Fonctions d'encadrement;571;219;79
+53;I;Ouvriers des secteurs de l'industrie;2014;1059;381
+53;O;Ouvriers de la construction et du bâtiment;626;566;14
+53;S;Fonctions sociales et médico-sociales;1351;754;274
+53;T;Autres techniciens et employés;109;77;0
+53;V;Fonctions liées à la vente, au tourisme et aux services;2630;1268;688
+53;Z;Autres métiers;1931;920;774
+54;A;Fonctions administratives;842;206;80
+54;C;Fonctions d'encadrement;1219;336;247
+54;I;Ouvriers des secteurs de l'industrie;1174;690;96
+54;O;Ouvriers de la construction et du bâtiment;1073;571;105
+54;S;Fonctions sociales et médico-sociales;3244;1544;1194
+54;T;Autres techniciens et employés;476;254;6
+54;V;Fonctions liées à la vente, au tourisme et aux services;6977;3239;1749
+54;Z;Autres métiers;1756;711;699
+55;A;Fonctions administratives;172;100;45
+55;C;Fonctions d'encadrement;297;132;110
+55;I;Ouvriers des secteurs de l'industrie;687;216;79
+55;O;Ouvriers de la construction et du bâtiment;331;211;41
+55;S;Fonctions sociales et médico-sociales;665;386;372
+55;T;Autres techniciens et employés;100;20;0
+55;V;Fonctions liées à la vente, au tourisme et aux services;1278;687;455
+55;Z;Autres métiers;1167;451;761
+56;A;Fonctions administratives;1284;187;392
+56;C;Fonctions d'encadrement;1811;428;408
+56;I;Ouvriers des secteurs de l'industrie;4022;2306;1227
+56;O;Ouvriers de la construction et du bâtiment;1539;1181;108
+56;S;Fonctions sociales et médico-sociales;3458;1995;1631
+56;T;Autres techniciens et employés;453;277;14
+56;V;Fonctions liées à la vente, au tourisme et aux services;14976;7692;7884
+56;Z;Autres métiers;4367;2048;2264
+57;A;Fonctions administratives;1052;220;127
+57;C;Fonctions d'encadrement;1165;410;244
+57;I;Ouvriers des secteurs de l'industrie;2928;1577;670
+57;O;Ouvriers de la construction et du bâtiment;2501;1623;328
+57;S;Fonctions sociales et médico-sociales;2615;1565;601
+57;T;Autres techniciens et employés;633;352;62
+57;V;Fonctions liées à la vente, au tourisme et aux services;9594;4685;2122
+57;Z;Autres métiers;2630;1072;766
+58;A;Fonctions administratives;247;62;44
+58;C;Fonctions d'encadrement;420;90;175
+58;I;Ouvriers des secteurs de l'industrie;332;95;126
+58;O;Ouvriers de la construction et du bâtiment;389;214;110
+58;S;Fonctions sociales et médico-sociales;894;540;355
+58;T;Autres techniciens et employés;102;76;0
+58;V;Fonctions liées à la vente, au tourisme et aux services;1752;707;594
+58;Z;Autres métiers;903;309;437
+59;A;Fonctions administratives;3645;1296;656
+59;C;Fonctions d'encadrement;7316;3025;989
+59;I;Ouvriers des secteurs de l'industrie;7631;3567;1826
+59;O;Ouvriers de la construction et du bâtiment;3967;2446;245
+59;S;Fonctions sociales et médico-sociales;9680;5032;3833
+59;T;Autres techniciens et employés;1560;1003;23
+59;V;Fonctions liées à la vente, au tourisme et aux services;24212;10289;4089
+59;Z;Autres métiers;9433;2705;3761
+60;A;Fonctions administratives;997;434;62
+60;C;Fonctions d'encadrement;1713;369;711
+60;I;Ouvriers des secteurs de l'industrie;2112;1152;279
+60;O;Ouvriers de la construction et du bâtiment;843;639;24
+60;S;Fonctions sociales et médico-sociales;2214;1312;690
+60;T;Autres techniciens et employés;625;231;200
+60;V;Fonctions liées à la vente, au tourisme et aux services;7956;2981;2382
+60;Z;Autres métiers;2545;1153;1019
+61;A;Fonctions administratives;220;73;46
+61;C;Fonctions d'encadrement;195;81;27
+61;I;Ouvriers des secteurs de l'industrie;1179;629;231
+61;O;Ouvriers de la construction et du bâtiment;566;404;0
+61;S;Fonctions sociales et médico-sociales;1147;808;249
+61;T;Autres techniciens et employés;83;61;6
+61;V;Fonctions liées à la vente, au tourisme et aux services;2337;1004;721
+61;Z;Autres métiers;1275;547;391
+62;A;Fonctions administratives;920;190;227
+62;C;Fonctions d'encadrement;1382;415;279
+62;I;Ouvriers des secteurs de l'industrie;3634;1364;719
+62;O;Ouvriers de la construction et du bâtiment;2187;1517;52
+62;S;Fonctions sociales et médico-sociales;5083;2150;2225
+62;T;Autres techniciens et employés;585;361;40
+62;V;Fonctions liées à la vente, au tourisme et aux services;13281;5331;4511
+62;Z;Autres métiers;5985;2154;2382
+63;A;Fonctions administratives;992;293;267
+63;C;Fonctions d'encadrement;1427;461;383
+63;I;Ouvriers des secteurs de l'industrie;1943;1020;297
+63;O;Ouvriers de la construction et du bâtiment;1238;1005;40
+63;S;Fonctions sociales et médico-sociales;2603;1485;841
+63;T;Autres techniciens et employés;475;169;26
+63;V;Fonctions liées à la vente, au tourisme et aux services;8072;2870;2801
+63;Z;Autres métiers;3107;797;1640
+64;A;Fonctions administratives;1239;429;253
+64;C;Fonctions d'encadrement;2045;623;472
+64;I;Ouvriers des secteurs de l'industrie;2308;1382;383
+64;O;Ouvriers de la construction et du bâtiment;1187;802;83
+64;S;Fonctions sociales et médico-sociales;3309;1827;758
+64;T;Autres techniciens et employés;388;258;20
+64;V;Fonctions liées à la vente, au tourisme et aux services;12571;7270;5392
+64;Z;Autres métiers;4425;1627;3248
+65;A;Fonctions administratives;241;54;74
+65;C;Fonctions d'encadrement;527;190;171
+65;I;Ouvriers des secteurs de l'industrie;548;395;35
+65;O;Ouvriers de la construction et du bâtiment;466;214;59
+65;S;Fonctions sociales et médico-sociales;1458;652;416
+65;T;Autres techniciens et employés;155;106;0
+65;V;Fonctions liées à la vente, au tourisme et aux services;4097;1926;2416
+65;Z;Autres métiers;732;352;355
+66;A;Fonctions administratives;678;236;245
+66;C;Fonctions d'encadrement;1449;231;290
+66;I;Ouvriers des secteurs de l'industrie;1133;675;688
+66;O;Ouvriers de la construction et du bâtiment;435;264;25
+66;S;Fonctions sociales et médico-sociales;2046;1274;1010
+66;T;Autres techniciens et employés;155;88;10
+66;V;Fonctions liées à la vente, au tourisme et aux services;8740;3145;5288
+66;Z;Autres métiers;5307;2331;4666
+67;A;Fonctions administratives;1790;840;70
+67;C;Fonctions d'encadrement;2819;923;324
+67;I;Ouvriers des secteurs de l'industrie;3765;2287;704
+67;O;Ouvriers de la construction et du bâtiment;2390;1646;179
+67;S;Fonctions sociales et médico-sociales;5124;3182;809
+67;T;Autres techniciens et employés;811;532;21
+67;V;Fonctions liées à la vente, au tourisme et aux services;13528;6277;3231
+67;Z;Autres métiers;5750;2280;3520
+68;A;Fonctions administratives;842;193;81
+68;C;Fonctions d'encadrement;876;420;22
+68;I;Ouvriers des secteurs de l'industrie;1839;732;507
+68;O;Ouvriers de la construction et du bâtiment;1346;1003;131
+68;S;Fonctions sociales et médico-sociales;2093;1073;363
+68;T;Autres techniciens et employés;400;266;10
+68;V;Fonctions liées à la vente, au tourisme et aux services;9138;4402;2465
+68;Z;Autres métiers;4756;2138;3366
+69;A;Fonctions administratives;5028;2082;178
+69;C;Fonctions d'encadrement;9289;3672;1153
+69;I;Ouvriers des secteurs de l'industrie;4564;2615;660
+69;O;Ouvriers de la construction et du bâtiment;3273;2050;448
+69;S;Fonctions sociales et médico-sociales;8405;5507;2158
+69;T;Autres techniciens et employés;2588;1579;107
+69;V;Fonctions liées à la vente, au tourisme et aux services;21620;9249;4145
+69;Z;Autres métiers;8074;3191;3956
+70;A;Fonctions administratives;184;68;51
+70;C;Fonctions d'encadrement;274;61;66
+70;I;Ouvriers des secteurs de l'industrie;721;380;168
+70;O;Ouvriers de la construction et du bâtiment;279;262;18
+70;S;Fonctions sociales et médico-sociales;903;607;133
+70;T;Autres techniciens et employés;48;37;0
+70;V;Fonctions liées à la vente, au tourisme et aux services;1681;928;419
+70;Z;Autres métiers;916;384;445
+71;A;Fonctions administratives;454;140;68
+71;C;Fonctions d'encadrement;845;195;198
+71;I;Ouvriers des secteurs de l'industrie;1866;875;420
+71;O;Ouvriers de la construction et du bâtiment;859;650;23
+71;S;Fonctions sociales et médico-sociales;1988;1279;375
+71;T;Autres techniciens et employés;196;154;37
+71;V;Fonctions liées à la vente, au tourisme et aux services;6147;2625;2015
+71;Z;Autres métiers;4839;2255;3139
+72;A;Fonctions administratives;953;132;174
+72;C;Fonctions d'encadrement;1107;363;163
+72;I;Ouvriers des secteurs de l'industrie;2729;1273;462
+72;O;Ouvriers de la construction et du bâtiment;1153;912;99
+72;S;Fonctions sociales et médico-sociales;2768;1480;749
+72;T;Autres techniciens et employés;324;173;0
+72;V;Fonctions liées à la vente, au tourisme et aux services;5840;2483;1496
+72;Z;Autres métiers;3672;1461;1904
+73;A;Fonctions administratives;1454;486;430
+73;C;Fonctions d'encadrement;1299;474;325
+73;I;Ouvriers des secteurs de l'industrie;1824;1001;482
+73;O;Ouvriers de la construction et du bâtiment;1929;1299;677
+73;S;Fonctions sociales et médico-sociales;2194;1330;642
+73;T;Autres techniciens et employés;517;401;6
+73;V;Fonctions liées à la vente, au tourisme et aux services;12287;4300;8213
+73;Z;Autres métiers;2821;1220;1724
+74;A;Fonctions administratives;1503;414;279
+74;C;Fonctions d'encadrement;1868;916;226
+74;I;Ouvriers des secteurs de l'industrie;2460;1444;699
+74;O;Ouvriers de la construction et du bâtiment;2007;1514;164
+74;S;Fonctions sociales et médico-sociales;4076;2740;1225
+74;T;Autres techniciens et employés;603;403;9
+74;V;Fonctions liées à la vente, au tourisme et aux services;15087;6418;8314
+74;Z;Autres métiers;2985;1382;1600
+75;A;Fonctions administratives;15378;3400;1626
+75;C;Fonctions d'encadrement;36510;8593;3076
+75;I;Ouvriers des secteurs de l'industrie;3074;1476;118
+75;O;Ouvriers de la construction et du bâtiment;2923;1377;317
+75;S;Fonctions sociales et médico-sociales;8480;3373;1104
+75;T;Autres techniciens et employés;2216;593;113
+75;V;Fonctions liées à la vente, au tourisme et aux services;47307;14999;6893
+75;Z;Autres métiers;2962;1167;503
+76;A;Fonctions administratives;1657;583;286
+76;C;Fonctions d'encadrement;2910;1070;388
+76;I;Ouvriers des secteurs de l'industrie;3819;1968;657
+76;O;Ouvriers de la construction et du bâtiment;2004;1271;46
+76;S;Fonctions sociales et médico-sociales;6039;2847;1920
+76;T;Autres techniciens et employés;1045;663;13
+76;V;Fonctions liées à la vente, au tourisme et aux services;13069;5593;4068
+76;Z;Autres métiers;3675;1555;1133
+77;A;Fonctions administratives;1638;449;111
+77;C;Fonctions d'encadrement;3061;1280;245
+77;I;Ouvriers des secteurs de l'industrie;2721;1693;251
+77;O;Ouvriers de la construction et du bâtiment;2792;1842;66
+77;S;Fonctions sociales et médico-sociales;3513;1390;566
+77;T;Autres techniciens et employés;1053;609;0
+77;V;Fonctions liées à la vente, au tourisme et aux services;12120;3922;1637
+77;Z;Autres métiers;6106;2408;1582
+78;A;Fonctions administratives;2425;698;282
+78;C;Fonctions d'encadrement;4569;1498;362
+78;I;Ouvriers des secteurs de l'industrie;2152;1170;82
+78;O;Ouvriers de la construction et du bâtiment;1537;923;188
+78;S;Fonctions sociales et médico-sociales;4186;2426;402
+78;T;Autres techniciens et employés;826;475;35
+78;V;Fonctions liées à la vente, au tourisme et aux services;13641;6041;1443
+78;Z;Autres métiers;2679;1332;751
+79;A;Fonctions administratives;506;234;66
+79;C;Fonctions d'encadrement;798;405;18
+79;I;Ouvriers des secteurs de l'industrie;2104;1375;310
+79;O;Ouvriers de la construction et du bâtiment;940;748;145
+79;S;Fonctions sociales et médico-sociales;1487;975;421
+79;T;Autres techniciens et employés;201;175;41
+79;V;Fonctions liées à la vente, au tourisme et aux services;3470;1646;974
+79;Z;Autres métiers;2980;1335;1787
+80;A;Fonctions administratives;835;172;169
+80;C;Fonctions d'encadrement;1070;201;463
+80;I;Ouvriers des secteurs de l'industrie;2319;1033;1080
+80;O;Ouvriers de la construction et du bâtiment;750;443;96
+80;S;Fonctions sociales et médico-sociales;2333;1127;963
+80;T;Autres techniciens et employés;220;104;0
+80;V;Fonctions liées à la vente, au tourisme et aux services;5138;2518;1813
+80;Z;Autres métiers;3321;1396;2019
+81;A;Fonctions administratives;499;134;61
+81;C;Fonctions d'encadrement;649;192;144
+81;I;Ouvriers des secteurs de l'industrie;1019;453;172
+81;O;Ouvriers de la construction et du bâtiment;568;336;51
+81;S;Fonctions sociales et médico-sociales;1884;858;534
+81;T;Autres techniciens et employés;106;88;8
+81;V;Fonctions liées à la vente, au tourisme et aux services;3691;1655;1308
+81;Z;Autres métiers;2212;512;1554
+82;A;Fonctions administratives;311;33;60
+82;C;Fonctions d'encadrement;571;236;97
+82;I;Ouvriers des secteurs de l'industrie;1114;561;342
+82;O;Ouvriers de la construction et du bâtiment;322;203;23
+82;S;Fonctions sociales et médico-sociales;1131;474;447
+82;T;Autres techniciens et employés;202;131;19
+82;V;Fonctions liées à la vente, au tourisme et aux services;2448;927;1066
+82;Z;Autres métiers;4395;1978;3944
+83;A;Fonctions administratives;1259;367;359
+83;C;Fonctions d'encadrement;3427;821;474
+83;I;Ouvriers des secteurs de l'industrie;1886;843;476
+83;O;Ouvriers de la construction et du bâtiment;2244;1019;281
+83;S;Fonctions sociales et médico-sociales;4207;1697;2239
+83;T;Autres techniciens et employés;440;249;13
+83;V;Fonctions liées à la vente, au tourisme et aux services;24444;10526;15746
+83;Z;Autres métiers;6841;2190;4690
+84;A;Fonctions administratives;931;178;271
+84;C;Fonctions d'encadrement;2243;481;798
+84;I;Ouvriers des secteurs de l'industrie;1691;645;620
+84;O;Ouvriers de la construction et du bâtiment;1166;519;108
+84;S;Fonctions sociales et médico-sociales;1951;707;586
+84;T;Autres techniciens et employés;206;134;15
+84;V;Fonctions liées à la vente, au tourisme et aux services;8829;3608;4845
+84;Z;Autres métiers;11510;3460;9642
+85;A;Fonctions administratives;1134;392;396
+85;C;Fonctions d'encadrement;1366;569;276
+85;I;Ouvriers des secteurs de l'industrie;4424;2987;989
+85;O;Ouvriers de la construction et du bâtiment;1720;1301;139
+85;S;Fonctions sociales et médico-sociales;3790;1667;1852
+85;T;Autres techniciens et employés;543;430;21
+85;V;Fonctions liées à la vente, au tourisme et aux services;14415;5631;8726
+85;Z;Autres métiers;5938;2839;3993
+86;A;Fonctions administratives;966;147;305
+86;C;Fonctions d'encadrement;1178;471;466
+86;I;Ouvriers des secteurs de l'industrie;1424;818;340
+86;O;Ouvriers de la construction et du bâtiment;888;621;0
+86;S;Fonctions sociales et médico-sociales;2267;1620;497
+86;T;Autres techniciens et employés;427;252;0
+86;V;Fonctions liées à la vente, au tourisme et aux services;6080;2012;1934
+86;Z;Autres métiers;2530;1352;1543
+87;A;Fonctions administratives;484;157;42
+87;C;Fonctions d'encadrement;882;166;53
+87;I;Ouvriers des secteurs de l'industrie;995;516;68
+87;O;Ouvriers de la construction et du bâtiment;723;480;87
+87;S;Fonctions sociales et médico-sociales;1507;929;569
+87;T;Autres techniciens et employés;253;213;12
+87;V;Fonctions liées à la vente, au tourisme et aux services;3714;1944;1343
+87;Z;Autres métiers;1774;910;1100
+88;A;Fonctions administratives;311;100;34
+88;C;Fonctions d'encadrement;351;114;38
+88;I;Ouvriers des secteurs de l'industrie;1382;827;170
+88;O;Ouvriers de la construction et du bâtiment;709;560;73
+88;S;Fonctions sociales et médico-sociales;1116;616;409
+88;T;Autres techniciens et employés;115;61;5
+88;V;Fonctions liées à la vente, au tourisme et aux services;3305;1273;1271
+88;Z;Autres métiers;1091;453;417
+89;A;Fonctions administratives;358;123;76
+89;C;Fonctions d'encadrement;526;184;19
+89;I;Ouvriers des secteurs de l'industrie;1172;702;203
+89;O;Ouvriers de la construction et du bâtiment;571;360;6
+89;S;Fonctions sociales et médico-sociales;1208;481;461
+89;T;Autres techniciens et employés;320;84;64
+89;V;Fonctions liées à la vente, au tourisme et aux services;3724;1414;1090
+89;Z;Autres métiers;2547;1063;1599
+90;A;Fonctions administratives;159;37;21
+90;C;Fonctions d'encadrement;114;30;39
+90;I;Ouvriers des secteurs de l'industrie;228;96;22
+90;O;Ouvriers de la construction et du bâtiment;112;76;0
+90;S;Fonctions sociales et médico-sociales;650;367;103
+90;T;Autres techniciens et employés;38;27;0
+90;V;Fonctions liées à la vente, au tourisme et aux services;1319;577;359
+90;Z;Autres métiers;219;41;86
+91;A;Fonctions administratives;1620;489;78
+91;C;Fonctions d'encadrement;4195;1540;275
+91;I;Ouvriers des secteurs de l'industrie;2362;929;198
+91;O;Ouvriers de la construction et du bâtiment;2409;1114;191
+91;S;Fonctions sociales et médico-sociales;3755;1738;961
+91;T;Autres techniciens et employés;1094;755;37
+91;V;Fonctions liées à la vente, au tourisme et aux services;10779;3161;1410
+91;Z;Autres métiers;4305;1514;595
+92;A;Fonctions administratives;6632;1938;316
+92;C;Fonctions d'encadrement;20270;8941;671
+92;I;Ouvriers des secteurs de l'industrie;2101;1109;138
+92;O;Ouvriers de la construction et du bâtiment;1986;1030;148
+92;S;Fonctions sociales et médico-sociales;7591;2845;1474
+92;T;Autres techniciens et employés;2187;1119;0
+92;V;Fonctions liées à la vente, au tourisme et aux services;23269;6608;1760
+92;Z;Autres métiers;2093;859;237
+93;A;Fonctions administratives;6203;895;3665
+93;C;Fonctions d'encadrement;8239;1650;532
+93;I;Ouvriers des secteurs de l'industrie;2066;883;6
+93;O;Ouvriers de la construction et du bâtiment;3411;1497;139
+93;S;Fonctions sociales et médico-sociales;6753;3086;707
+93;T;Autres techniciens et employés;1216;689;21
+93;V;Fonctions liées à la vente, au tourisme et aux services;14028;4132;1483
+93;Z;Autres métiers;3771;1174;425
+94;A;Fonctions administratives;1722;510;22
+94;C;Fonctions d'encadrement;5562;1215;548
+94;I;Ouvriers des secteurs de l'industrie;1415;804;30
+94;O;Ouvriers de la construction et du bâtiment;1984;1058;54
+94;S;Fonctions sociales et médico-sociales;4553;1925;540
+94;T;Autres techniciens et employés;669;342;42
+94;V;Fonctions liées à la vente, au tourisme et aux services;12076;4418;1186
+94;Z;Autres métiers;3547;1429;320
+95;A;Fonctions administratives;1931;776;325
+95;C;Fonctions d'encadrement;3933;1221;526
+95;I;Ouvriers des secteurs de l'industrie;1877;1023;187
+95;O;Ouvriers de la construction et du bâtiment;3509;2228;558
+95;S;Fonctions sociales et médico-sociales;3858;1584;521
+95;T;Autres techniciens et employés;1249;720;0
+95;V;Fonctions liées à la vente, au tourisme et aux services;8893;3149;818
+95;Z;Autres métiers;3853;1344;441
+971;A;Fonctions administratives;971;390;117
+971;C;Fonctions d'encadrement;650;393;128
+971;I;Ouvriers des secteurs de l'industrie;700;376;133
+971;O;Ouvriers de la construction et du bâtiment;1676;1065;233
+971;S;Fonctions sociales et médico-sociales;1704;705;503
+971;T;Autres techniciens et employés;308;227;61
+971;V;Fonctions liées à la vente, au tourisme et aux services;5551;2131;2019
+971;Z;Autres métiers;1645;670;477
+972;A;Fonctions administratives;938;204;113
+972;C;Fonctions d'encadrement;617;157;72
+972;I;Ouvriers des secteurs de l'industrie;696;459;56
+972;O;Ouvriers de la construction et du bâtiment;1157;664;148
+972;S;Fonctions sociales et médico-sociales;2033;808;508
+972;T;Autres techniciens et employés;211;133;13
+972;V;Fonctions liées à la vente, au tourisme et aux services;4448;2098;1134
+972;Z;Autres métiers;2245;928;518
+973;A;Fonctions administratives;332;129;7
+973;C;Fonctions d'encadrement;411;176;27
+973;I;Ouvriers des secteurs de l'industrie;248;132;0
+973;O;Ouvriers de la construction et du bâtiment;800;384;91
+973;S;Fonctions sociales et médico-sociales;1380;788;120
+973;T;Autres techniciens et employés;162;113;0
+973;V;Fonctions liées à la vente, au tourisme et aux services;1949;782;475
+973;Z;Autres métiers;1008;567;156
+974;A;Fonctions administratives;2062;565;138
+974;C;Fonctions d'encadrement;1854;551;265
+974;I;Ouvriers des secteurs de l'industrie;2001;758;470
+974;O;Ouvriers de la construction et du bâtiment;3065;1665;359
+974;S;Fonctions sociales et médico-sociales;5441;1501;636
+974;T;Autres techniciens et employés;283;183;0
+974;V;Fonctions liées à la vente, au tourisme et aux services;14053;4752;1584
+974;Z;Autres métiers;4832;1598;873
+976;A;Fonctions administratives;685;392;92
+976;C;Fonctions d'encadrement;564;351;91
+976;I;Ouvriers des secteurs de l'industrie;416;249;73
+976;O;Ouvriers de la construction et du bâtiment;1505;957;359
+976;S;Fonctions sociales et médico-sociales;807;508;180
+976;T;Autres techniciens et employés;257;179;75
+976;V;Fonctions liées à la vente, au tourisme et aux services;2560;1328;619
+976;Z;Autres métiers;1114;464;375

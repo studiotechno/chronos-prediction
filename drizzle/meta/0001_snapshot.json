@@ -1,0 +1,1379 @@
+{
+  "id": "46d4da56-1872-4c71-858e-095f3e894c09",
+  "prevId": "1da4c85e-bacb-4767-9281-753c6f7e33b1",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.agence": {
+      "name": "agence",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "responsable": {
+          "name": "responsable",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commune": {
+          "name": "commune",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "departement": {
+          "name": "departement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lon": {
+          "name": "lon",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rayon_km": {
+          "name": "rayon_km",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naf_cibles": {
+          "name": "naf_cibles",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rome_cibles": {
+          "name": "rome_cibles",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "naf_exclus": {
+          "name": "naf_exclus",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cree_le": {
+          "name": "cree_le",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.crm_outcome": {
+      "name": "crm_outcome",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evenement": {
+          "name": "evenement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "motif": {
+          "name": "motif",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_final": {
+          "name": "score_final",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strate": {
+          "name": "strate",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sismo": {
+          "name": "sismo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tempo": {
+          "name": "tempo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "top_types": {
+          "name": "top_types",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.entreprise": {
+      "name": "entreprise",
+      "schema": "",
+      "columns": {
+        "siren": {
+          "name": "siren",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "denomination": {
+          "name": "denomination",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_creation": {
+          "name": "date_creation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "etat": {
+          "name": "etat",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caractere_employeur": {
+          "name": "caractere_employeur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nb_etabs_ouverts": {
+          "name": "nb_etabs_ouverts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ca_annee": {
+          "name": "ca_annee",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ca": {
+          "name": "ca",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ca_precedent": {
+          "name": "ca_precedent",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resultat_net": {
+          "name": "resultat_net",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resultat_net_precedent": {
+          "name": "resultat_net_precedent",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idcc": {
+          "name": "idcc",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "complements": {
+          "name": "complements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.etablissement": {
+      "name": "etablissement",
+      "schema": "",
+      "columns": {
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "siren": {
+          "name": "siren",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "denomination": {
+          "name": "denomination",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "naf": {
+          "name": "naf",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tranche_effectif": {
+          "name": "tranche_effectif",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tranche_effectif_source": {
+          "name": "tranche_effectif_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effectif_estime": {
+          "name": "effectif_estime",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commune": {
+          "name": "commune",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_insee": {
+          "name": "code_insee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lon": {
+          "name": "lon",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_creation": {
+          "name": "date_creation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut_activite": {
+          "name": "date_debut_activite",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "etat_administratif": {
+          "name": "etat_administratif",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "est_siege": {
+          "name": "est_siege",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "caractere_employeur": {
+          "name": "caractere_employeur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enseignes": {
+          "name": "enseignes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nom_commercial": {
+          "name": "nom_commercial",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idcc": {
+          "name": "idcc",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icpe": {
+          "name": "icpe",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "icpe_regime": {
+          "name": "icpe_regime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lbb_score": {
+          "name": "lbb_score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lbb_maj": {
+          "name": "lbb_maj",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "etablissement_siren_idx": {
+          "name": "etablissement_siren_idx",
+          "columns": [
+            {
+              "expression": "siren",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "etablissement_naf_idx": {
+          "name": "etablissement_naf_idx",
+          "columns": [
+            {
+              "expression": "naf",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "etablissement_cp_idx": {
+          "name": "etablissement_cp_idx",
+          "columns": [
+            {
+              "expression": "code_postal",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "etablissement_insee_idx": {
+          "name": "etablissement_insee_idx",
+          "columns": [
+            {
+              "expression": "code_insee",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "etablissement_siren_entreprise_siren_fk": {
+          "name": "etablissement_siren_entreprise_siren_fk",
+          "tableFrom": "etablissement",
+          "tableTo": "entreprise",
+          "columnsFrom": [
+            "siren"
+          ],
+          "columnsTo": [
+            "siren"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ingestion_run": {
+      "name": "ingestion_run",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "records_in": {
+          "name": "records_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "records_out": {
+          "name": "records_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "errors": {
+          "name": "errors",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.lead": {
+      "name": "lead",
+      "schema": "",
+      "columns": {
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "score_final": {
+          "name": "score_final",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "strate": {
+          "name": "strate",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sismo": {
+          "name": "sismo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tempo": {
+          "name": "tempo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nouveau'"
+        },
+        "segment": {
+          "name": "segment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'chaud'"
+        },
+        "raison_fr": {
+          "name": "raison_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proposition_fr": {
+          "name": "proposition_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "top_signals": {
+          "name": "top_signals",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fenetre_debut": {
+          "name": "fenetre_debut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fenetre_fin": {
+          "name": "fenetre_fin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lieu_besoin_fr": {
+          "name": "lieu_besoin_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distance_besoin_km": {
+          "name": "distance_besoin_km",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "romes_induits": {
+          "name": "romes_induits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "lead_segment_idx": {
+          "name": "lead_segment_idx",
+          "columns": [
+            {
+              "expression": "segment",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.offre_brute": {
+      "name": "offre_brute",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entreprise_nom": {
+          "name": "entreprise_nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intitule": {
+          "name": "intitule",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type_contrat": {
+          "name": "type_contrat",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duree_contrat_jours": {
+          "name": "duree_contrat_jours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rome": {
+          "name": "rome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commune": {
+          "name": "commune",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_insee": {
+          "name": "code_insee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lon": {
+          "name": "lon",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "par_agence_interim": {
+          "name": "par_agence_interim",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "date_publication": {
+          "name": "date_publication",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_actualisation": {
+          "name": "date_actualisation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nb_actualisations": {
+          "name": "nb_actualisations",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "nombre_postes": {
+          "name": "nombre_postes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manque_candidats": {
+          "name": "manque_candidats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tranche_effectif_etab": {
+          "name": "tranche_effectif_etab",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "offre_siret_idx": {
+          "name": "offre_siret_idx",
+          "columns": [
+            {
+              "expression": "siret",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "offre_intitule_idx": {
+          "name": "offre_intitule_idx",
+          "columns": [
+            {
+              "expression": "intitule",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.resolution_queue": {
+      "name": "resolution_queue",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_denomination": {
+          "name": "raw_denomination",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_code_postal": {
+          "name": "raw_code_postal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_naf": {
+          "name": "raw_naf",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "candidats": {
+          "name": "candidats",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en_attente'"
+        },
+        "resolved_siret": {
+          "name": "resolved_siret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signal_id": {
+          "name": "signal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.score_sismo": {
+      "name": "score_sismo",
+      "schema": "",
+      "columns": {
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.score_snapshot": {
+      "name": "score_snapshot",
+      "schema": "",
+      "columns": {
+        "jour": {
+          "name": "jour",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "strate": {
+          "name": "strate",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sismo": {
+          "name": "sismo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tempo": {
+          "name": "tempo",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score_final": {
+          "name": "score_final",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "segment": {
+          "name": "segment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "top_types": {
+          "name": "top_types",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "snapshot_siret_idx": {
+          "name": "snapshot_siret_idx",
+          "columns": [
+            {
+              "expression": "siret",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "score_snapshot_jour_siret_pk": {
+          "name": "score_snapshot_jour_siret_pk",
+          "columns": [
+            "jour",
+            "siret"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.score_strate": {
+      "name": "score_strate",
+      "schema": "",
+      "columns": {
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.score_tempo": {
+      "name": "score_tempo",
+      "schema": "",
+      "columns": {
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.signal": {
+      "name": "signal",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "siret": {
+          "name": "siret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siren": {
+          "name": "siren",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ingested_at": {
+          "name": "ingested_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_ref": {
+          "name": "raw_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lieu": {
+          "name": "lieu",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "romes": {
+          "name": "romes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "signal_source_rawref_uq": {
+          "name": "signal_source_rawref_uq",
+          "columns": [
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "raw_ref",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "signal_siret_idx": {
+          "name": "signal_siret_idx",
+          "columns": [
+            {
+              "expression": "siret",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "signal_siren_idx": {
+          "name": "signal_siren_idx",
+          "columns": [
+            {
+              "expression": "siren",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "signal_type_idx": {
+          "name": "signal_type_idx",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.weights": {
+      "name": "weights",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min": {
+          "name": "min",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max": {
+          "name": "max",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label_fr": {
+          "name": "label_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description_fr": {
+          "name": "description_fr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   }
 
   const db = getDb();
-  const input = loadEngineInput(db, parsed.data.weights);
+  const input = await loadEngineInput(db, parsed.data.weights);
   const output = computeAll(input);
 
   const chauds = output.leads.filter((l) => l.segment === "chaud");
@@ -28,12 +28,16 @@ export async function POST(req: Request) {
   const noms =
     top.length > 0
       ? new Map(
-          db
-            .select({ siret: schema.etablissement.siret, denomination: schema.etablissement.denomination, commune: schema.etablissement.commune })
-            .from(schema.etablissement)
-            .where(inArray(schema.etablissement.siret, top.map((l) => l.siret)))
-            .all()
-            .map((r) => [r.siret, r]),
+          (
+            await db
+              .select({
+                siret: schema.etablissement.siret,
+                denomination: schema.etablissement.denomination,
+                commune: schema.etablissement.commune,
+              })
+              .from(schema.etablissement)
+              .where(inArray(schema.etablissement.siret, top.map((l) => l.siret)))
+          ).map((r) => [r.siret, r]),
         )
       : new Map();
 
@@ -47,6 +51,7 @@ export async function POST(req: Request) {
       scoreFinal: l.scoreFinal,
       strate: l.strate,
       sismo: l.sismo,
+      tempo: l.tempo,
     })),
   });
 }

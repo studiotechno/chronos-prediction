@@ -23,19 +23,30 @@ type PreviewLead = {
   scoreFinal: number;
   strate: number;
   sismo: number;
+  tempo?: number;
 };
 
 type Preview = { nbChauds: number; nbNurturing: number; top: PreviewLead[] };
 
-const GROUPES: { titre: string; teinte: "strate" | "sismo" | "neutre"; test: (k: string) => boolean }[] = [
-  { titre: "Strate — fit structurel", teinte: "strate", test: (k) => k.startsWith("strate.") },
-  { titre: "Sismo — poids des signaux", teinte: "sismo", test: (k) => k.startsWith("sismo.poids.") },
-  { titre: "Sismo — demi-vies (jours)", teinte: "sismo", test: (k) => k.startsWith("sismo.demivie.") },
+const estNoyau = (k: string) =>
+  k.startsWith("sismo.pic.") || k.startsWith("sismo.largeur.") || k === "sismo.plancher_retard";
+
+const GROUPES: {
+  titre: string;
+  teinte: "strate" | "sismo" | "tempo" | "neutre";
+  test: (k: string) => boolean;
+}[] = [
+  { titre: "Socle — fit structurel", teinte: "strate", test: (k) => k.startsWith("strate.") },
+  { titre: "Pouls — poids des signaux", teinte: "sismo", test: (k) => k.startsWith("sismo.poids.") },
+  { titre: "Pouls — demi-vies (jours)", teinte: "sismo", test: (k) => k.startsWith("sismo.demivie.") },
+  { titre: "Pouls — noyaux à retard", teinte: "sismo", test: estNoyau },
   {
-    titre: "Sismo — normalisation et facteurs",
+    titre: "Pouls — normalisation, secteur et corroboration",
     teinte: "sismo",
-    test: (k) => k.startsWith("sismo.") && !k.startsWith("sismo.poids.") && !k.startsWith("sismo.demivie."),
+    test: (k) =>
+      k.startsWith("sismo.") && !k.startsWith("sismo.poids.") && !k.startsWith("sismo.demivie.") && !estNoyau(k),
   },
+  { titre: "Tempo — le quand", teinte: "tempo", test: (k) => k.startsWith("tempo.") },
   { titre: "Score final", teinte: "neutre", test: (k) => k.startsWith("final.") },
 ];
 
@@ -115,8 +126,9 @@ export function PoidsEditeur({
               <h2
                 className={cn(
                   "px-4 py-2.5 text-sm font-semibold border-b",
-                  g.teinte === "strate" && "text-strate bg-strate-soft/40",
-                  g.teinte === "sismo" && "text-sismo bg-sismo-soft/40",
+                  g.teinte === "strate" && "text-strate bg-strate-dim",
+                  g.teinte === "sismo" && "text-sismo bg-sismo-dim",
+                  g.teinte === "tempo" && "text-tempo bg-tempo-dim",
                 )}
               >
                 {g.titre}
@@ -161,14 +173,14 @@ export function PoidsEditeur({
             <h2 className="text-sm font-semibold">Impact en direct — top 20</h2>
             {preview && (
               <p className="text-xs text-muted-foreground">
-                {preview.nbChauds} chauds · {preview.nbNurturing} nurturing
+                {preview.nbChauds} chauds · {preview.nbNurturing} tièdes
               </p>
             )}
           </div>
           <span
             className={cn(
               "h-2 w-2 rounded-full transition-colors",
-              enCalcul ? "bg-sismo animate-pulse" : "bg-emerald-500",
+              enCalcul ? "bg-sismo animate-pulse" : "bg-green",
             )}
             title={enCalcul ? "Recalcul…" : "À jour"}
           />
@@ -184,9 +196,9 @@ export function PoidsEditeur({
                   {delta == null ? (
                     <span className="text-sismo">nouv.</span>
                   ) : delta > 0 ? (
-                    <span className="text-emerald-600">▲{delta}</span>
+                    <span className="text-green">▲{delta}</span>
                   ) : delta < 0 ? (
-                    <span className="text-risque">▼{-delta}</span>
+                    <span className="text-chaud">▼{-delta}</span>
                   ) : (
                     <span className="text-muted-foreground">=</span>
                   )}
@@ -195,6 +207,14 @@ export function PoidsEditeur({
                   {l.denomination}
                   <span className="text-xs text-muted-foreground"> · {l.commune}</span>
                 </span>
+                {l.tempo != null && Number.isFinite(l.tempo) && (
+                  <span
+                    className="font-mono text-[10.5px] tabular-nums text-tempo"
+                    title={`Tempo ×${l.tempo.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  >
+                    ×{l.tempo.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
                 <span className="font-mono text-sm font-semibold tabular-nums">{Math.round(l.scoreFinal)}</span>
               </li>
             );
@@ -233,7 +253,7 @@ export function PoidsEditeur({
           >
             Réinitialiser
           </Button>
-          {enregistre && !modifie && <span className="text-xs text-emerald-600">Enregistré ✓</span>}
+          {enregistre && !modifie && <span className="text-xs text-green">Enregistré ✓</span>}
         </div>
       </aside>
     </div>

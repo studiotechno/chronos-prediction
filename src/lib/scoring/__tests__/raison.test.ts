@@ -50,7 +50,7 @@ describe("raison d'appeler", () => {
   it("assemble l'exemple attendu du brief", () => {
     const { raisonFr } = buildRaison(signaux, contributions, { tauxRecoursSecteur: 8.2 });
     expect(raisonFr).toBe(
-      "A décroché un marché public de 480 k€ le 3 août, et a republié 3 fois la même offre de cariste CACES 3 depuis le 12 août. Secteur à fort recours à l'intérim.",
+      "A décroché un marché public de 480 k€ le 3 août (Voirie), et a republié 3 fois la même offre de cariste CACES 3 depuis le 12 août. Secteur à fort recours à l'intérim.",
     );
   });
 
@@ -97,5 +97,41 @@ describe("raison d'appeler", () => {
   it("aucun signal → message nurturing", () => {
     const { raisonFr } = buildRaison([], [], { tauxRecoursSecteur: 8 });
     expect(raisonFr).toBe("Bon profil structurel, aucun déclencheur récent.");
+  });
+});
+
+describe("proposition", () => {
+  it("propose des métiers, une fenêtre et un lieu", () => {
+    const now = new Date("2026-08-27T12:00:00Z");
+    const signaux: SignalScoringInput[] = [
+      {
+        id: "m",
+        type: "MARCHE_ATTRIBUE",
+        occurredAt: "2026-08-20T08:00:00Z",
+        confidence: 1,
+        payload: { objet: "Aménagement de l'entrée Nord", montant: null, acheteurNom: "Commune de Saint-Pourçain" },
+        romes: ["F1702", "F1302"],
+      },
+    ];
+    const contributions: SignalContribution[] = [
+      { id: "m", type: "MARCHE_ATTRIBUE", occurredAt: "2026-08-20T08:00:00Z", contribution: 10 },
+    ];
+    const { raisonFr, propositionFr } = buildRaison(signaux, contributions, {
+      tauxRecoursSecteur: 9,
+      romesInduits: ["F1702", "F1302"],
+      fenetre: { debut: "2026-10-15T00:00:00Z", fin: "2026-11-15T00:00:00Z" },
+      lieuFr: "Saint-Pourçain-sur-Sioule",
+      distanceKm: 12.4,
+      now,
+    });
+    expect(raisonFr).toContain("A décroché un marché public pour Commune de Saint-Pourçain le 20 août (Aménagement de l'entrée Nord)");
+    expect(propositionFr).toContain("Proposer : construction de routes et voies, conduite d'engins de chantier");
+    expect(propositionFr).toContain("Appeler entre le 15 octobre et le 15 novembre");
+    expect(propositionFr).toContain("Besoin à Saint-Pourçain-sur-Sioule (12 km)");
+  });
+
+  it("n'invente rien quand il n'y a ni métier ni fenêtre", () => {
+    const { propositionFr } = buildRaison([], [], { tauxRecoursSecteur: 8 });
+    expect(propositionFr).toBeNull();
   });
 });

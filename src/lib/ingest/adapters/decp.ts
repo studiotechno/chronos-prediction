@@ -11,6 +11,8 @@
 import { z } from "zod";
 import { fetchJsonCache, RateLimiter } from "../http";
 import type { FetchParams, NormalizedRecord, SourceAdapter } from "../types";
+import { nombreFini } from "../nombre";
+import { romesDeCpv } from "../../reference/metiers";
 
 const BASE = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/decp-2022-marches-valides/records";
 const limiter = new RateLimiter(5);
@@ -91,9 +93,12 @@ export const decpAdapter: SourceAdapter<DecpRaw> = {
             montant: raw.montant,
             cpv: raw.codecpv,
             acheteur: raw.acheteur_id != null ? String(raw.acheteur_id) : null,
-            dureeMois: raw.dureemois != null ? Number(raw.dureemois) : null,
+            dureeMois: nombreFini(raw.dureemois),
           },
           rawRef: `${raw.id}-${id}`,
+          lieu: null,
+          // Métiers induits par le CPV : ce que le chantier va demander.
+          romes: romesDeCpv(raw.codecpv),
         },
       });
     }

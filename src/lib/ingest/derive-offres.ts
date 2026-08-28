@@ -1,19 +1,28 @@
 /**
  * Dérivation des signaux France Travail à partir du staging offre_brute.
  * Un signal n'est JAMAIS une offre recopiée : c'est une dérivée calculée
- * (republication, vélocité, CDD répétés, mission concurrente).
+ * (republication, vélocité, CDD répétés, réactualisation, manque de candidats,
+ * multipostes, mission concurrente).
+ *
+ * Chaque signal d'offre porte le LIEU DU BESOIN (le lieu de travail, pas le
+ * siège) et le métier ROME induit : le moteur mesure la distance au chantier
+ * et propose un métier au téléphone.
  *
  * Cœur pur et testable (deriveSignaux) + enveloppe base (deriveEtEnregistrer).
  * Limite documentée (cold start) : OFFRE_REPUBLIEE et OFFRE_VELOCITE ne
  * deviennent fiables qu'après plusieurs semaines d'ingestion régulière,
- * puisqu'une offre clôturée disparaît de l'API. Voir docs/sources.md.
+ * puisqu'une offre clôturée disparaît de l'API. OFFRE_REACTUALISEE contourne
+ * ce cold start : la source publie `dateActualisation`, et une offre non
+ * pourvue est réactualisée par l'employeur. Voir docs/sources.md.
  */
 import { eq, notLike } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import crypto from "node:crypto";
 import * as schema from "../db/schema";
-import { matchEntity, type CandidatEtab } from "../matching/match";
-import { candidatsSirene, enrichirSiretsManquants } from "./enrich";
+import { chunk } from "../db/chunk";
+import { effectifEstime } from "../reference/tranches";
+import { creerRapprocheur } from "./rapprocher";
+import type { SignalLieu } from "./types";
 
 export type OffreLike = {
   id: string;
@@ -25,8 +34,16 @@ export type OffreLike = {
   rome: string | null;
   codePostal: string | null;
   commune: string | null;
+  codeInsee?: string | null;
+  lat?: number | null;
+  lon?: number | null;
   parAgenceInterim: number;
   datePublication: string;
+  dateActualisation?: string | null;
+  nbActualisations?: number | null;
+  nombrePostes?: number | null;
+  manqueCandidats?: number | null;
+  trancheEffectifEtab?: string | null;
   closedAt: string | null;
   /** Métadonnées de la source (codeNAF, romeLibelle) — jamais de donnée personnelle. */
   payload?: Record<string, unknown> | null;
@@ -40,6 +57,8 @@ export type RapprochementStats = {
   rejets: number;
   /** Offres écartées avant tout appel réseau : NAF hors divisions cibles. */
   horsCible: number;
+  /** Tranches d'effectif publiées par France Travail propagées à des établissements qui n'en avaient pas. */
+  tranchesPropagees: number;
 };
 
 export type SignalDraft = {
@@ -51,6 +70,8 @@ export type SignalDraft = {
   confidence: number;
   payload: Record<string, unknown>;
   rawRef: string;
+  lieu: SignalLieu | null;
+  romes: string[] | null;
 };
 
 const JOUR_MS = 86400000;
@@ -63,6 +84,27 @@ function slug(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
     .slice(0, 40);
+}
+
+/** Lieu du besoin : le lieu de travail de l'offre, quand la source le géolocalise. */
+export function lieuDe(o: OffreLike): SignalLieu | null {
+  if (typeof o.lat !== "number" || typeof o.lon !== "number") return null;
+  if (!Number.isFinite(o.lat) || !Number.isFinite(o.lon)) return null;
+  return { lat: o.lat, lon: o.lon, libelle: o.commune ?? null };
+}
+
+/**
+ * Libellé métier publié par France Travail. Le projet a déjà tranché pour la
+ * carte de couverture : c'est la source qui nomme les métiers, pas un
+ * dictionnaire ROME local forcément incomplet. Sans lui, la proposition
+ * d'appel affiche des codes bruts (« proposer : i1613, n4109 »).
+ */
+export function romeLibelleDe(o: OffreLike): string | null {
+  return (o.payload as { romeLibelle?: string | null } | null)?.romeLibelle ?? null;
+}
+
+function romesDe(o: OffreLike): string[] | null {
+  return o.rome ? [o.rome] : null;
 }
 
 export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
@@ -83,6 +125,7 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
       occurredAt: o.datePublication,
       confidence: 1,
       payload: {
+        offreId: o.id,
         intitule: o.intitule,
         rome: o.rome,
         romeLibelle: (o.payload as { romeLibelle?: string | null } | null)?.romeLibelle ?? null,
@@ -91,6 +134,8 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
         agenceInterim: o.entrepriseNom,
       },
       rawRef: `mission-${o.id}`,
+      lieu: lieuDe(o),
+      romes: romesDe(o),
     });
   }
 
@@ -106,19 +151,62 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
   for (const [siret, liste] of parSiret) {
     const siren = siret.slice(0, 9);
 
-    // ------------------------------------------------------------ OFFRE_DIRECTE
     for (const o of liste) {
       if (ageJours(o.datePublication) > 90) continue;
+      const base = { siret, siren, source: "francetravail", confidence: 0.95, lieu: lieuDe(o), romes: romesDe(o) };
+
+      // ------------------------------------------------------------ OFFRE_DIRECTE
       signaux.push({
-        siret,
-        siren,
+        ...base,
         type: "OFFRE_DIRECTE",
-        source: "francetravail",
         occurredAt: o.datePublication,
-        confidence: 0.95,
-        payload: { intitule: o.intitule, rome: o.rome, typeContrat: o.typeContrat },
+        payload: { offreId: o.id, intitule: o.intitule, rome: o.rome, romeLibelle: romeLibelleDe(o), typeContrat: o.typeContrat },
         rawRef: `directe-${o.id}`,
       });
+
+      // ------------------------------------------------------------ OFFRE_MANQUE_CANDIDATS
+      // France Travail lui-même signale l'offre comme difficile à pourvoir.
+      if (o.manqueCandidats === 1) {
+        signaux.push({
+          ...base,
+          type: "OFFRE_MANQUE_CANDIDATS",
+          occurredAt: o.datePublication,
+          payload: { offreId: o.id, intitule: o.intitule, rome: o.rome, romeLibelle: romeLibelleDe(o), typeContrat: o.typeContrat },
+          rawRef: `manque-${o.id}`,
+        });
+      }
+
+      // ------------------------------------------------------------ OFFRE_MULTIPOSTES
+      // Plusieurs postes sur une même offre : un recrutement de volume, pas un remplacement.
+      if (o.nombrePostes != null && o.nombrePostes >= 2) {
+        signaux.push({
+          ...base,
+          type: "OFFRE_MULTIPOSTES",
+          occurredAt: o.datePublication,
+          payload: { offreId: o.id, intitule: o.intitule, rome: o.rome, romeLibelle: romeLibelleDe(o), nombrePostes: o.nombrePostes },
+          rawRef: `multi-${o.id}`,
+        });
+      }
+
+      // ------------------------------------------------------------ OFFRE_REACTUALISEE
+      // Réactualisée au moins deux fois : elle ne se pourvoit pas. Chaque nouvelle
+      // actualisation crée un signal daté du jour de l'actualisation ; l'ancien décroît.
+      if (o.nbActualisations != null && o.nbActualisations >= 2) {
+        signaux.push({
+          ...base,
+          type: "OFFRE_REACTUALISEE",
+          occurredAt: o.dateActualisation ?? o.datePublication,
+          payload: {
+            offreId: o.id,
+            intitule: o.intitule,
+            rome: o.rome,
+            romeLibelle: romeLibelleDe(o),
+            nbActualisations: o.nbActualisations,
+            premierePublication: o.datePublication,
+          },
+          rawRef: `reactu-${o.id}-${o.nbActualisations}`,
+        });
+      }
     }
 
     // ------------------------------------------------------------ OFFRE_REPUBLIEE
@@ -145,12 +233,15 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
         occurredAt: derniere.datePublication,
         confidence: 0.95,
         payload: {
+          offreId: derniere.id,
           intitule: derniere.intitule,
           rome: derniere.rome,
           nbRepublications: republications + 1,
           premierePublication: triees[0].datePublication,
         },
         rawRef: `repub-${siret}-${cleIntitule}-${triees.length}`,
+        lieu: lieuDe(derniere),
+        romes: romesDe(derniere),
       });
     }
 
@@ -177,12 +268,15 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
         confidence: 0.95,
         payload: { nbCdd: cddCourts.length, fenetreJours: 60, dureeMoyenneJours: dureeMoy },
         rawRef: `cddcourt-${siret}-${now.toISOString().slice(0, 7)}`,
+        lieu: lieuDe(plusRecente),
+        romes: [...new Set(cddCourts.map((o) => o.rome).filter((r): r is string => !!r))],
       });
     }
 
     // ------------------------------------------------------------ OFFRE_VELOCITE
     // Volume sur 14 jours glissants > baseline 90 jours + 2 écarts-types.
-    const n14 = liste.filter((o) => ageJours(o.datePublication) <= 14).length;
+    const recentes = liste.filter((o) => ageJours(o.datePublication) <= 14);
+    const n14 = recentes.length;
     if (n14 >= 3) {
       // Baseline : fenêtres de 14 jours sur les jours 15 à 104 (6 fenêtres)
       const fenetres: number[] = [];
@@ -201,6 +295,7 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
       const ecartType = Math.sqrt(variance);
       const seuil = moyenne + 2 * Math.max(0.5, ecartType); // plancher pour éviter σ=0
       if (n14 > seuil) {
+        const plusRecente = recentes.reduce((a, b) => (a.datePublication > b.datePublication ? a : b));
         signaux.push({
           siret,
           siren,
@@ -214,6 +309,8 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
             ecartsTypes: ecartType > 0 ? Math.round(((n14 - moyenne) / ecartType) * 10) / 10 : null,
           },
           rawRef: `velocite-${siret}-${semaineIso(now)}`,
+          lieu: lieuDe(plusRecente),
+          romes: [...new Set(recentes.map((o) => o.rome).filter((r): r is string => !!r))],
         });
       }
     }
@@ -237,19 +334,19 @@ function division(naf: string | null | undefined): string | null {
   return d.length === 2 ? d : null;
 }
 
+function estTrancheConnue(t: string | null | undefined): boolean {
+  return !!t && t !== "NN";
+}
+
 /**
  * Rapprochement des offres sans SIRET. France Travail ne publie JAMAIS le SIRET
  * de l'employeur (vérifié : 0 offre sur 150) : ce rapprochement est donc le chemin
  * normal de la source la plus importante du système, pas un cas limite.
  *
- * Deux passes, dans cet ordre :
- *   1. contre le référentiel local (gratuit, instantané) ;
+ * Le rapprocheur partagé (src/lib/ingest/rapprocher.ts) fait les deux passes :
+ *   1. contre le référentiel local, enseignes comprises (gratuit, instantané) ;
  *   2. si aucun rattachement automatique, interrogation de SIRENE par raison
  *      sociale + département, dont les candidats repassent par le même scoring.
- *
- * Mesuré sur l'Allier : la passe locale seule n'attachait que 33 offres sur 2 211,
- * parce que le référentiel est bâti autour de l'agence et filtré par NAF alors que
- * les employeurs sont répartis dans tout le département.
  *
  * Garde-fou de volumétrie : seules les offres dont le NAF (fourni par France Travail)
  * appartient aux divisions cibles de l'agence déclenchent un appel réseau. Inutile
@@ -257,9 +354,12 @@ function division(naf: string | null | undefined): string | null {
  *
  * Décisions : ≥ 0.88 rattachement automatique, 0.62-0.88 file de résolution
  * manuelle, en dessous rejet compté.
+ *
+ * Après rattachement, la tranche d'effectif publiée par France Travail est
+ * propagée à l'établissement quand l'INSEE n'en publie pas (82 % des cas).
  */
 async function rapprocherOffresSansSiret(
-  db: BetterSQLite3Database<typeof schema>,
+  db: PostgresJsDatabase<typeof schema>,
   offres: (typeof schema.offreBrute.$inferSelect)[],
   now: Date,
 ): Promise<RapprochementStats> {
@@ -269,40 +369,31 @@ async function rapprocherOffresSansSiret(
     ambigus: 0,
     rejets: 0,
     horsCible: 0,
+    tranchesPropagees: 0,
   };
 
   const aTraiter = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret && o.entrepriseNom);
-  if (aTraiter.length === 0) return stats;
+  const rattachees = offres.filter((o) => o.parAgenceInterim !== 1 && o.siret);
 
-  const agence = db.select().from(schema.agence).limit(1).all()[0];
+  const agence = (await db.select().from(schema.agence).limit(1))[0];
   const divisionsCibles = new Set(
     (agence?.nafCibles ?? []).map((n) => n.replace(/[^0-9]/g, "").slice(0, 2)),
   );
 
-  const referentiel: CandidatEtab[] = db
-    .select({
-      siret: schema.etablissement.siret,
-      denomination: schema.etablissement.denomination,
-      codePostal: schema.etablissement.codePostal,
-      commune: schema.etablissement.commune,
-      naf: schema.etablissement.naf,
-    })
-    .from(schema.etablissement)
-    .all();
-
   const nowIso = now.toISOString();
 
-  const rattacher = (o: (typeof schema.offreBrute.$inferSelect), siret: string) => {
-    db.update(schema.offreBrute).set({ siret }).where(eq(schema.offreBrute.id, o.id)).run();
+  const rattacher = async (o: (typeof schema.offreBrute.$inferSelect), siret: string) => {
+    await db.update(schema.offreBrute).set({ siret }).where(eq(schema.offreBrute.id, o.id));
     o.siret = siret; // la dérivation qui suit en profite immédiatement
   };
 
-  const mettreEnFile = (
+  const mettreEnFile = async (
     o: (typeof schema.offreBrute.$inferSelect),
     candidats: { siret: string; denomination: string; commune: string | null; naf: string | null; similarite: number }[],
   ) => {
     const pendingId = `match-sig-${o.id}`;
-    db.insert(schema.signal)
+    await db
+      .insert(schema.signal)
       .values({
         id: pendingId,
         siret: null,
@@ -313,16 +404,20 @@ async function rapprocherOffresSansSiret(
         ingestedAt: nowIso,
         confidence: candidats[0]?.similarite ?? 0.7,
         payload: {
+          offreId: o.id,
           intitule: o.intitule,
           rome: o.rome,
+          romeLibelle: romeLibelleDe(o),
           typeContrat: o.typeContrat,
           entrepriseNom: o.entrepriseNom,
         },
         rawRef: `pending-directe-${o.id}`,
+        lieu: lieuDe(o),
+        romes: o.rome ? [o.rome] : null,
       })
-      .onConflictDoNothing()
-      .run();
-    db.insert(schema.resolutionQueue)
+      .onConflictDoNothing();
+    await db
+      .insert(schema.resolutionQueue)
       .values({
         id: `match-${o.id}`,
         source: "francetravail",
@@ -335,77 +430,86 @@ async function rapprocherOffresSansSiret(
         signalId: pendingId,
         createdAt: nowIso,
       })
-      .onConflictDoNothing()
-      .run();
+      .onConflictDoNothing();
   };
 
-  for (const o of aTraiter) {
-    const nafOffre = (o.payload as { codeNAF?: string } | null)?.codeNAF ?? null;
-    const divOffre = division(nafOffre);
+  /**
+   * Tranche France Travail → établissement sans tranche INSEE. Une tranche déjà
+   * connue (INSEE ou propagée) n'est jamais remplacée.
+   */
+  const tranchesVues = new Set<string>();
+  const propagerTranche = async (o: (typeof schema.offreBrute.$inferSelect)) => {
+    if (!o.siret || !estTrancheConnue(o.trancheEffectifEtab) || tranchesVues.has(o.siret)) return;
+    tranchesVues.add(o.siret);
+    const etab = (
+      await db
+        .select({ trancheEffectif: schema.etablissement.trancheEffectif })
+        .from(schema.etablissement)
+        .where(eq(schema.etablissement.siret, o.siret))
+    )[0];
+    if (!etab || estTrancheConnue(etab.trancheEffectif)) return;
+    await db
+      .update(schema.etablissement)
+      .set({
+        trancheEffectif: o.trancheEffectifEtab,
+        trancheEffectifSource: "francetravail",
+        effectifEstime: effectifEstime(o.trancheEffectifEtab),
+      })
+      .where(eq(schema.etablissement.siret, o.siret));
+    stats.tranchesPropagees++;
+  };
 
-    // Passe 1 — référentiel local
-    const local = matchEntity(
-      { denomination: o.entrepriseNom!, codePostal: o.codePostal, naf: nafOffre },
-      referentiel,
-    );
-    if (local.decision === "auto") {
-      rattacher(o, local.candidat.siret);
-      stats.autos++;
-      continue;
-    }
+  if (aTraiter.length > 0) {
+    const rapprocheur = await creerRapprocheur(db);
 
-    // Hors cible ICP : on ne consomme pas d'appel réseau pour ce prospect.
-    if (divisionsCibles.size > 0 && (!divOffre || !divisionsCibles.has(divOffre))) {
-      stats.horsCible++;
-      continue;
-    }
+    for (const o of aTraiter) {
+      const nafOffre = (o.payload as { codeNAF?: string } | null)?.codeNAF ?? null;
+      const divOffre = division(nafOffre);
+      // Hors cible ICP : on ne consomme pas d'appel réseau pour ce prospect —
+      // le référentiel local reste consulté (gratuit).
+      const horsCible = divisionsCibles.size > 0 && (!divOffre || !divisionsCibles.has(divOffre));
 
-    // Passe 2 — interrogation de SIRENE
-    const departement = o.codePostal?.slice(0, 2) ?? null;
-    const candidatsDistants = departement
-      ? await candidatsSirene(o.entrepriseNom!, departement)
-      : [];
-    const distant =
-      candidatsDistants.length > 0
-        ? matchEntity(
-            { denomination: o.entrepriseNom!, codePostal: o.codePostal, naf: nafOffre },
-            candidatsDistants,
-          )
-        : null;
-
-    if (distant?.decision === "auto") {
-      await enrichirSiretsManquants(db, [distant.candidat.siret]);
-      referentiel.push(distant.candidat);
-      rattacher(o, distant.candidat.siret);
-      stats.autos++;
-      stats.autosViaSirene++;
-      continue;
-    }
-
-    // Meilleure liste de candidats disponible pour l'arbitrage humain
-    const candidats =
-      distant?.decision === "ambigu"
-        ? distant.candidats
-        : local.decision === "ambigu"
-          ? local.candidats
-          : [];
-
-    if (candidats.length > 0) {
-      mettreEnFile(
-        o,
-        candidats.map((c) => ({
-          siret: c.siret,
-          denomination: c.denomination,
-          commune: c.commune,
-          naf: c.naf,
-          similarite: c.similarite,
-        })),
+      const r = await rapprocheur.rapprocher(
+        {
+          denomination: o.entrepriseNom!,
+          codePostal: o.codePostal,
+          departement: o.codePostal?.slice(0, 2) ?? null,
+          naf: nafOffre,
+        },
+        { sansReseau: horsCible },
       );
-      stats.ambigus++;
-    } else {
-      stats.rejets++;
+
+      if (r.decision === "auto") {
+        await rattacher(o, r.siret);
+        stats.autos++;
+        if (r.viaSirene) stats.autosViaSirene++;
+        await propagerTranche(o);
+        continue;
+      }
+      if (horsCible) {
+        stats.horsCible++;
+        continue;
+      }
+      if (r.decision === "ambigu") {
+        await mettreEnFile(
+          o,
+          r.candidats.map((c) => ({
+            siret: c.siret,
+            denomination: c.denomination,
+            commune: c.commune,
+            naf: c.naf,
+            similarite: c.similarite,
+          })),
+        );
+        stats.ambigus++;
+      } else {
+        stats.rejets++;
+      }
     }
   }
+
+  // Les offres déjà rattachées (import précédent) peuvent aussi apporter une tranche.
+  for (const o of rattachees) await propagerTranche(o);
 
   return stats;
 }
@@ -413,14 +517,13 @@ async function rapprocherOffresSansSiret(
 
 /** Charge les offres réelles (hors fixtures), rapproche, dérive, insère (idempotent). */
 export async function deriveEtEnregistrer(
-  db: BetterSQLite3Database<typeof schema>,
+  db: PostgresJsDatabase<typeof schema>,
   now: Date = new Date(),
 ): Promise<{ derives: number; inseres: number; sansSiret: number; rapprochement: RapprochementStats }> {
-  const offres = db
+  const offres = await db
     .select()
     .from(schema.offreBrute)
-    .where(notLike(schema.offreBrute.source, "fixture:%"))
-    .all();
+    .where(notLike(schema.offreBrute.source, "fixture:%"));
 
   const rapprochement = await rapprocherOffresSansSiret(db, offres, now);
 
@@ -433,25 +536,37 @@ export async function deriveEtEnregistrer(
       typeContrat: o.typeContrat,
       dureeContratJours: o.dureeContratJours,
       rome: o.rome,
+      romeLibelle: romeLibelleDe(o),
       codePostal: o.codePostal,
       commune: o.commune,
+      codeInsee: o.codeInsee,
+      lat: o.lat,
+      lon: o.lon,
       parAgenceInterim: o.parAgenceInterim,
       datePublication: o.datePublication,
+      dateActualisation: o.dateActualisation,
+      nbActualisations: o.nbActualisations,
+      nombrePostes: o.nombrePostes,
+      manqueCandidats: o.manqueCandidats,
+      trancheEffectifEtab: o.trancheEffectifEtab,
       closedAt: o.closedAt,
       payload: o.payload,
     })),
     now,
   );
 
-  let inseres = 0;
   const nowIso = now.toISOString();
-  for (const s of signaux) {
-    const r = db
+  // Insertion par lots : `returning` compte ce qui a réellement été écrit,
+  // ON CONFLICT DO NOTHING ne renvoyant rien pour les doublons.
+  let inseres = 0;
+  const aInserer = signaux.map((s) => ({ id: crypto.randomUUID(), ingestedAt: nowIso, ...s }));
+  for (const paquet of chunk(aInserer)) {
+    const ecrits = await db
       .insert(schema.signal)
-      .values({ id: crypto.randomUUID(), ingestedAt: nowIso, ...s })
+      .values(paquet)
       .onConflictDoNothing()
-      .run();
-    if (r.changes > 0) inseres++;
+      .returning({ id: schema.signal.id });
+    inseres += ecrits.length;
   }
 
   const sansSiret = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret).length;

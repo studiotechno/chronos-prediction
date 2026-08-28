@@ -9,11 +9,32 @@ import { WEIGHT_DEFAULTS } from "@/lib/scoring/weights-defaults";
 
 const STATUTS = ["nouveau", "contacte", "qualifie", "perdu", "gagne"] as const;
 
+/**
+ * Chaque changement de statut laisse une trace datée dans `crm_outcome`, avec
+ * le score et les signaux du moment : c'est le futur jeu d'entraînement —
+ * quel type de signal, à quel score, a fini en RDV ou en mission.
+ */
 export async function updateLeadStatut(siret: string, statut: string) {
   const parsed = z.enum(STATUTS).safeParse(statut);
   if (!parsed.success) return { ok: false as const, message: "Statut inconnu" };
   const db = getDb();
-  db.update(schema.lead).set({ statut: parsed.data }).where(eq(schema.lead.siret, siret)).run();
+  const lead = (await db.select().from(schema.lead).where(eq(schema.lead.siret, siret)))[0];
+  if (lead && lead.statut !== parsed.data) {
+    await db.insert(schema.crmOutcome).values({
+      id: `crm-${siret}-${Date.now().toString(36)}`,
+      siret,
+      evenement: parsed.data,
+      date: new Date().toISOString(),
+      montant: null,
+      motif: null,
+      scoreFinal: lead.scoreFinal,
+      strate: lead.strate,
+      sismo: lead.sismo,
+      tempo: lead.tempo,
+      topTypes: [...new Set((lead.topSignals ?? []).map((s) => s.type))].slice(0, 5),
+    });
+  }
+  await db.update(schema.lead).set({ statut: parsed.data }).where(eq(schema.lead.siret, siret));
   revalidatePath("/");
   revalidatePath(`/lead/${siret}`);
   return { ok: true as const };
@@ -23,29 +44,29 @@ export async function validerResolution(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const siret = String(formData.get("siret") ?? "");
   const db = getDb();
-  const entree = db.select().from(schema.resolutionQueue).where(eq(schema.resolutionQueue.id, id)).all()[0];
+  const entree = (await db.select().from(schema.resolutionQueue).where(eq(schema.resolutionQueue.id, id)))[0];
   if (!entree || entree.statut !== "en_attente") return;
 
   const candidat = (entree.candidats ?? []).find((c) => c.siret === siret);
   if (!candidat) return;
 
-  const etab = db.select().from(schema.etablissement).where(eq(schema.etablissement.siret, siret)).all()[0];
+  const etab = (await db.select().from(schema.etablissement).where(eq(schema.etablissement.siret, siret)))[0];
 
-  db.transaction((tx) => {
-    tx.update(schema.resolutionQueue)
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.resolutionQueue)
       .set({ statut: "resolu", resolvedSiret: siret })
-      .where(eq(schema.resolutionQueue.id, id))
-      .run();
+      .where(eq(schema.resolutionQueue.id, id));
     if (entree.signalId) {
-      tx.update(schema.signal)
+      await tx
+        .update(schema.signal)
         .set({ siret, siren: etab?.siren ?? siret.slice(0, 9), confidence: candidat.similarite })
-        .where(eq(schema.signal.id, entree.signalId))
-        .run();
+        .where(eq(schema.signal.id, entree.signalId));
     }
   });
 
   // Le signal rattaché entre immédiatement dans le scoring
-  runScoring(db, { persist: true });
+  await runScoring(db, { persist: true });
   revalidatePath("/resolution");
   revalidatePath("/");
 }
@@ -53,10 +74,10 @@ export async function validerResolution(formData: FormData) {
 export async function rejeterResolution(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const db = getDb();
-  db.update(schema.resolutionQueue)
+  await db
+    .update(schema.resolutionQueue)
     .set({ statut: "rejete" })
-    .where(eq(schema.resolutionQueue.id, id))
-    .run();
+    .where(eq(schema.resolutionQueue.id, id));
   revalidatePath("/resolution");
 }
 
@@ -67,18 +88,18 @@ export async function saveWeights(valeurs: Record<string, number>) {
   if (!parsed.success) return { ok: false as const, message: "Poids invalides" };
   const db = getDb();
   const now = new Date().toISOString();
-  const existants = new Map(db.select().from(schema.weights).all().map((w) => [w.key, w]));
+  const existants = new Map((await db.select().from(schema.weights)).map((w) => [w.key, w]));
 
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     for (const [key, value] of Object.entries(parsed.data)) {
       const def = existants.get(key);
       if (!def) continue; // clé inconnue : ignorée
       const borne = Math.max(def.min, Math.min(def.max, value));
-      tx.update(schema.weights).set({ value: borne, updatedAt: now }).where(eq(schema.weights.key, key)).run();
+      await tx.update(schema.weights).set({ value: borne, updatedAt: now }).where(eq(schema.weights.key, key));
     }
   });
 
-  runScoring(db, { persist: true });
+  await runScoring(db, { persist: true });
   revalidatePath("/", "layout");
   return { ok: true as const };
 }
@@ -86,12 +107,85 @@ export async function saveWeights(valeurs: Record<string, number>) {
 export async function resetWeights() {
   const db = getDb();
   const now = new Date().toISOString();
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     for (const def of WEIGHT_DEFAULTS) {
-      tx.update(schema.weights).set({ value: def.value, updatedAt: now }).where(eq(schema.weights.key, def.key)).run();
+      await tx
+        .update(schema.weights)
+        .set({ value: def.value, updatedAt: now })
+        .where(eq(schema.weights.key, def.key));
     }
   });
-  runScoring(db, { persist: true });
+  await runScoring(db, { persist: true });
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+}
+
+/* ── Inscription et zone de prospection ─────────────────────────────
+   Une seule action pour les deux : l'inscription crée la ligne agence,
+   /zone la met à jour. Comme la distance à l'agence entre dans le score
+   Strate, tout changement de zone relance le calcul — sinon la liste des
+   leads continuerait de décrire l'ancienne implantation. */
+
+const agenceSchema = z.object({
+  nom: z.string().trim().min(2, "Nom d'agence trop court").max(80),
+  responsable: z.string().trim().max(80).optional(),
+  email: z.string().trim().email("Adresse email invalide").optional().or(z.literal("")),
+  commune: z.string().trim().min(1),
+  codePostal: z.string().trim().max(10).nullable(),
+  departement: z.string().trim().max(5).nullable(),
+  lat: z.number().finite().min(-90).max(90),
+  lon: z.number().finite().min(-180).max(180),
+  rayonKm: z.number().finite().min(5).max(150),
+  nafCibles: z.array(z.string().trim().max(4)).max(60),
+  romeCibles: z.array(z.string().trim().max(6)).max(120),
+  /** Divisions (2 chiffres) ou codes NAF complets exclus du scoring ; absent = liste par défaut (78, 84). */
+  nafExclus: z.array(z.string().trim().max(6)).max(60).optional(),
+});
+
+export type AgenceInput = z.infer<typeof agenceSchema>;
+
+export async function enregistrerAgence(input: AgenceInput) {
+  const parsed = agenceSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Saisie invalide" };
+  }
+  const v = parsed.data;
+  const db = getDb();
+  const existante = (await db.select().from(schema.agence).limit(1))[0];
+
+  const valeurs = {
+    nom: v.nom,
+    responsable: v.responsable?.trim() || null,
+    email: v.email?.trim() || null,
+    commune: v.commune,
+    codePostal: v.codePostal,
+    departement: v.departement,
+    lat: v.lat,
+    lon: v.lon,
+    rayonKm: v.rayonKm,
+    nafCibles: v.nafCibles,
+    romeCibles: v.romeCibles,
+    ...(v.nafExclus !== undefined && {
+      nafExclus: v.nafExclus.map((c) => c.replace(/[^0-9A-Za-z.]/g, "")).filter(Boolean),
+    }),
+  };
+
+  if (existante) {
+    await db.update(schema.agence).set(valeurs).where(eq(schema.agence.id, existante.id));
+  } else {
+    await db
+      .insert(schema.agence)
+      .values({ id: `agence-${Date.now().toString(36)}`, creeLe: new Date().toISOString(), ...valeurs });
+  }
+
+  // Le recalcul n'a de sens qu'avec des données en base : une inscription
+  // sur base vierge n'a encore rien à scorer, et ce n'est pas une erreur.
+  try {
+    await runScoring(db, { persist: true });
+  } catch (e) {
+    console.warn("[agence] scoring non relancé :", e instanceof Error ? e.message : e);
+  }
+
   revalidatePath("/", "layout");
   return { ok: true as const };
 }

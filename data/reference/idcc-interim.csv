@@ -1,0 +1,88 @@
+# Taux de recours à l'intérim par convention collective (IDCC).
+# La convention collective déclarée en DSN décrit l'activité réelle bien mieux que la
+# division NAF : « 1597 bâtiment ouvriers > 10 salariés » et « 2420 bâtiment cadres »
+# partagent le NAF 43 mais pas le recours à l'intérim.
+# ANCRAGE RÉEL : taux par grand secteur DARES, T1 2025 (série « L'intérim », données DSN) —
+#   construction 8,3 %, industrie 6,9 %, tertiaire marchand 2,7 %, tertiaire non marchand 0,5 %.
+# APPROXIMATION À REMPLACER : la ventilation par IDCC est une estimation cohérente avec ces
+#   ancrages (part ouvrière de la convention, intensité de main-d'œuvre), pas une donnée DARES.
+#   Un IDCC absent de ce fichier retombe sur la table par division NAF (dares-interim-naf.csv).
+# Format : idcc;libelle;taux_pct;niveau_source
+idcc;libelle;taux_pct;niveau_source
+1596;Bâtiment — ouvriers (≤ 10 salariés);7.5;approx_idcc
+1597;Bâtiment — ouvriers (> 10 salariés);9.5;approx_idcc
+2609;Bâtiment — ETAM;4.0;approx_idcc
+2420;Bâtiment — cadres;1.5;approx_idcc
+1702;Travaux publics — ouvriers;10.0;approx_idcc
+2614;Travaux publics — ETAM;4.0;approx_idcc
+3212;Travaux publics — cadres;1.5;approx_idcc
+3043;Propreté et services associés;4.0;approx_idcc
+7018;Entreprises du paysage;4.0;approx_idcc
+7024;Production agricole et CUMA;3.5;approx_idcc
+3248;Métallurgie (convention unique 2024);8.0;approx_idcc
+650;Métallurgie — ingénieurs et cadres;1.5;approx_idcc
+44;Industries chimiques;6.0;approx_idcc
+292;Plasturgie;8.5;approx_idcc
+45;Caoutchouc;8.0;approx_idcc
+176;Industrie pharmaceutique;4.5;approx_idcc
+1396;Industries alimentaires diverses;6.5;approx_idcc
+112;Industrie laitière;6.0;approx_idcc
+1534;Industries charcutières;7.0;approx_idcc
+1938;Transformation des volailles;8.0;approx_idcc
+1747;Boulangerie-pâtisserie industrielle;6.5;approx_idcc
+843;Boulangerie-pâtisserie artisanale;1.5;approx_idcc
+1513;Eaux embouteillées et boissons;6.0;approx_idcc
+2728;Sucreries et distilleries;6.0;approx_idcc
+1930;Meunerie;5.5;approx_idcc
+158;Travail mécanique du bois, scieries;6.0;approx_idcc
+2089;Panneaux à base de bois;6.5;approx_idcc
+1492;Papier-carton — production;6.5;approx_idcc
+489;Papier-carton — transformation;6.5;approx_idcc
+18;Industries textiles;4.5;approx_idcc
+247;Habillement;2.5;approx_idcc
+669;Fabrication mécanique du verre;6.0;approx_idcc
+1558;Céramique;5.5;approx_idcc
+87;Carrières et matériaux — ouvriers;7.5;approx_idcc
+135;Carrières et matériaux — ETAM;3.5;approx_idcc
+211;Carrières et matériaux — cadres;1.5;approx_idcc
+363;Industrie du ciment;5.0;approx_idcc
+1170;Tuiles et briques;6.5;approx_idcc
+184;Imprimerie et industries graphiques;3.5;approx_idcc
+637;Récupération et recyclage;6.0;approx_idcc
+2149;Activités du déchet;6.0;approx_idcc
+2147;Eau et assainissement;3.0;approx_idcc
+5001;Industries électriques et gazières;1.0;approx_idcc
+16;Transports routiers et activités auxiliaires;6.5;approx_idcc
+1090;Services de l'automobile;2.5;approx_idcc
+573;Commerce de gros;3.0;approx_idcc
+1517;Commerce de détail non alimentaire;1.8;approx_idcc
+2216;Commerce à prédominance alimentaire;2.0;approx_idcc
+1505;Commerce de détail fruits et légumes;2.0;approx_idcc
+1606;Bricolage;2.0;approx_idcc
+2098;Prestataires de services du tertiaire;3.0;approx_idcc
+1486;Bureaux d'études techniques (Syntec);1.0;approx_idcc
+787;Experts-comptables;0.3;approx_idcc
+1351;Prévention et sécurité;2.0;approx_idcc
+1979;Hôtels, cafés, restaurants;1.2;approx_idcc
+1501;Restauration rapide;1.0;approx_idcc
+1266;Restauration de collectivités;2.0;approx_idcc
+2941;Aide, accompagnement et soins à domicile;0.5;approx_idcc
+3127;Services à la personne;0.5;approx_idcc
+2264;Hospitalisation privée;1.5;approx_idcc
+51;Établissements privés d'hospitalisation (FEHAP);1.0;approx_idcc
+29;Hospitalisation privée à but non lucratif;1.0;approx_idcc
+1518;Animation;0.5;approx_idcc
+2120;Banque;0.3;approx_idcc
+1672;Sociétés d'assurances;0.3;approx_idcc
+1527;Immobilier;0.4;approx_idcc
+2148;Télécommunications;0.8;approx_idcc
+3218;Enseignement privé non lucratif;0.2;approx_idcc
+1516;Organismes de formation;0.5;approx_idcc
+2511;Sport;0.5;approx_idcc
+86;Publicité;0.5;approx_idcc
+1996;Pharmacie d'officine;0.5;approx_idcc
+2205;Notariat;0.2;approx_idcc
+1000;Avocats salariés;0.2;approx_idcc
+2596;Coiffure;0.3;approx_idcc
+2378;Travail temporaire — salariés permanents;0.0;exclu
+1413;Travail temporaire — intérimaires;0.0;exclu

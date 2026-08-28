@@ -6,10 +6,12 @@
  * Toutes les lignes sont étiquetées fixture : source = 'fixture:<source>' et SIREN en 900xxxxxx.
  */
 import { like } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
+import { chunk } from "../db/chunk";
 import { mulberry32, pick, pickWeighted, randInt, chance, type Rng } from "./rng";
 import { trancheByCode, trancheRank, TRANCHES_EFFECTIF } from "../reference/tranches";
+import { romesDeCpv } from "../reference/metiers";
 
 export type SeedStats = {
   entreprises: number;
@@ -25,30 +27,51 @@ const SEED = 20260827;
 // Bassin
 // ---------------------------------------------------------------------------
 
-type Commune = { nom: string; cp: string; lat: number; lon: number; poids: number };
+/* Compétences par domaine ROME (première lettre du code) : de quoi remplir une
+   annonce de démo sans inventer un référentiel métier complet. */
+const COMPETENCES_PAR_DOMAINE: Record<string, string[]> = {
+  A: ["Conduite d'engin agricole", "Entretien des espaces verts", "Taille et élagage", "Traitement phytosanitaire"],
+  F: ["Lecture de plan et de schéma", "Règles de sécurité sur chantier", "Coffrage et ferraillage", "Pose de bordures et de réseaux", "Conduite d'engin de chantier"],
+  G: ["Accueil et conseil de la clientèle", "Service en salle", "Encaissement", "Règles d'hygiène HACCP"],
+  H: ["Contrôle qualité en production", "Conduite de ligne automatisée", "Maintenance de premier niveau", "Lecture de gamme de fabrication", "Respect des cadences"],
+  I: ["Diagnostic de panne", "Maintenance préventive", "Habilitation électrique", "Lecture de schéma technique"],
+  J: ["Soins d'hygiène et de confort", "Accompagnement des personnes", "Transmission des observations"],
+  K: ["Accompagnement des publics", "Animation d'atelier", "Rédaction de comptes rendus"],
+  M: ["Saisie et suivi administratif", "Relation client", "Maîtrise des outils bureautiques", "Gestion des priorités"],
+  N: ["Conduite de chariot élévateur (CACES)", "Préparation de commandes", "Gestion des stocks", "Chargement et déchargement", "Utilisation d'un scanner de codes-barres"],
+};
+
+const SAVOIR_ETRE = [
+  "Faire preuve d'autonomie",
+  "Travailler en équipe",
+  "Faire preuve de rigueur et de précision",
+  "Organiser son travail selon les priorités",
+];
+
+type Commune = { nom: string; cp: string; insee: string; lat: number; lon: number; poids: number };
 
 const COMMUNES: Commune[] = [
-  { nom: "Vichy", cp: "03200", lat: 46.1264, lon: 3.4258, poids: 8 },
-  { nom: "Cusset", cp: "03300", lat: 46.134, lon: 3.456, poids: 6 },
-  { nom: "Bellerive-sur-Allier", cp: "03700", lat: 46.116, lon: 3.404, poids: 5 },
-  { nom: "Abrest", cp: "03200", lat: 46.095, lon: 3.443, poids: 2 },
-  { nom: "Saint-Yorre", cp: "03270", lat: 46.066, lon: 3.464, poids: 3 },
-  { nom: "Hauterive", cp: "03270", lat: 46.089, lon: 3.448, poids: 1 },
-  { nom: "Saint-Germain-des-Fossés", cp: "03260", lat: 46.206, lon: 3.435, poids: 3 },
-  { nom: "Creuzier-le-Vieux", cp: "03300", lat: 46.155, lon: 3.44, poids: 2 },
-  { nom: "Charmeil", cp: "03110", lat: 46.17, lon: 3.4, poids: 2 },
-  { nom: "Gannat", cp: "03800", lat: 46.1, lon: 3.199, poids: 4 },
-  { nom: "Saint-Pourçain-sur-Sioule", cp: "03500", lat: 46.309, lon: 3.289, poids: 4 },
-  { nom: "Varennes-sur-Allier", cp: "03150", lat: 46.312, lon: 3.402, poids: 4 },
-  { nom: "Lapalisse", cp: "03120", lat: 46.248, lon: 3.638, poids: 2 },
-  { nom: "Le Mayet-de-Montagne", cp: "03250", lat: 46.072, lon: 3.664, poids: 1 },
-  { nom: "Bessay-sur-Allier", cp: "03340", lat: 46.442, lon: 3.363, poids: 2 },
-  { nom: "Moulins", cp: "03000", lat: 46.566, lon: 3.333, poids: 3 },
-  { nom: "Yzeure", cp: "03400", lat: 46.565, lon: 3.355, poids: 2 },
-  { nom: "Avermes", cp: "03000", lat: 46.594, lon: 3.307, poids: 1 },
-  { nom: "Dompierre-sur-Besbre", cp: "03290", lat: 46.522, lon: 3.681, poids: 2 },
-  { nom: "Commentry", cp: "03600", lat: 46.291, lon: 2.744, poids: 1 },
-  { nom: "Montluçon", cp: "03100", lat: 46.341, lon: 2.603, poids: 1 },
+  { nom: "Vichy", cp: "03200", insee: "03310", lat: 46.1264, lon: 3.4258, poids: 8 },
+  { nom: "Cusset", cp: "03300", insee: "03095", lat: 46.134, lon: 3.456, poids: 6 },
+  { nom: "Bellerive-sur-Allier", cp: "03700", insee: "03023", lat: 46.116, lon: 3.404, poids: 5 },
+  { nom: "Abrest", cp: "03200", insee: "03001", lat: 46.095, lon: 3.443, poids: 2 },
+  { nom: "Saint-Yorre", cp: "03270", insee: "03264", lat: 46.066, lon: 3.464, poids: 3 },
+  { nom: "Hauterive", cp: "03270", insee: "03126", lat: 46.089, lon: 3.448, poids: 1 },
+  { nom: "Saint-Germain-des-Fossés", cp: "03260", insee: "03236", lat: 46.206, lon: 3.435, poids: 3 },
+  { nom: "Creuzier-le-Vieux", cp: "03300", insee: "03094", lat: 46.155, lon: 3.44, poids: 2 },
+  { nom: "Charmeil", cp: "03110", insee: "03060", lat: 46.17, lon: 3.4, poids: 2 },
+  { nom: "Gannat", cp: "03800", insee: "03118", lat: 46.1, lon: 3.199, poids: 4 },
+  { nom: "Saint-Pourçain-sur-Sioule", cp: "03500", insee: "03254", lat: 46.309, lon: 3.289, poids: 4 },
+  { nom: "Varennes-sur-Allier", cp: "03150", insee: "03298", lat: 46.312, lon: 3.402, poids: 4 },
+  { nom: "Lapalisse", cp: "03120", insee: "03138", lat: 46.248, lon: 3.638, poids: 2 },
+  { nom: "Le Mayet-de-Montagne", cp: "03250", insee: "03165", lat: 46.072, lon: 3.664, poids: 1 },
+  { nom: "Bessay-sur-Allier", cp: "03340", insee: "03025", lat: 46.442, lon: 3.363, poids: 2 },
+  { nom: "Moulins", cp: "03000", insee: "03190", lat: 46.566, lon: 3.333, poids: 3 },
+  { nom: "Yzeure", cp: "03400", insee: "03321", lat: 46.565, lon: 3.355, poids: 2 },
+  { nom: "Avermes", cp: "03000", insee: "03013", lat: 46.594, lon: 3.307, poids: 1 },
+  { nom: "Dompierre-sur-Besbre", cp: "03290", insee: "03102", lat: 46.522, lon: 3.681, poids: 2 },
+  { nom: "Commentry", cp: "03600", insee: "03082", lat: 46.291, lon: 2.744, poids: 1 },
+  { nom: "Montluçon", cp: "03100", insee: "03185", lat: 46.341, lon: 2.603, poids: 1 },
 ];
 
 const communeByNom = new Map(COMMUNES.map((c) => [c.nom, c]));
@@ -67,6 +90,10 @@ type Secteur = {
   offres: OffreType[];
   /** [code tranche, poids] */
   tranches: readonly (readonly [string, number])[];
+  /** Conventions collectives déclarées en DSN (IDCC) : l'activité réelle, plus fine que la NAF. */
+  idcc: string[];
+  /** Chiffre d'affaires moyen par salarié (€), pour des finances de démo plausibles. */
+  caParSalarie: number;
 };
 
 const GEO = [
@@ -90,6 +117,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Menuisier poseur (H/F)", rome: "F1607" },
     ],
     tranches: [["03", 15], ["11", 30], ["12", 30], ["21", 15], ["22", 8], ["31", 2]],
+    idcc: ["1597", "2609"],
+    caParSalarie: 130000,
   },
   {
     id: "transport",
@@ -102,6 +131,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Chauffeur-livreur (H/F)", rome: "N4105" },
     ],
     tranches: [["03", 10], ["11", 25], ["12", 35], ["21", 18], ["22", 10], ["31", 2]],
+    idcc: ["16"],
+    caParSalarie: 150000,
   },
   {
     id: "logistique",
@@ -115,6 +146,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Magasinier (H/F)", rome: "N1103" },
     ],
     tranches: [["11", 15], ["12", 30], ["21", 25], ["22", 20], ["31", 7], ["32", 3]],
+    idcc: ["16"],
+    caParSalarie: 160000,
   },
   {
     id: "industrie",
@@ -128,6 +161,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Technicien de maintenance (H/F)", rome: "I1304" },
     ],
     tranches: [["03", 10], ["11", 25], ["12", 30], ["21", 20], ["22", 10], ["31", 5]],
+    idcc: ["3248"],
+    caParSalarie: 220000,
   },
   {
     id: "agro",
@@ -140,6 +175,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Conducteur de ligne d'embouteillage (H/F)", rome: "H2102" },
     ],
     tranches: [["03", 15], ["11", 30], ["12", 30], ["21", 15], ["22", 10]],
+    idcc: ["1396"],
+    caParSalarie: 240000,
   },
   {
     id: "proprete",
@@ -151,6 +188,8 @@ const SECTEURS: Secteur[] = [
       { intitule: "Laveur de vitres (H/F)", rome: "K2202" },
     ],
     tranches: [["03", 15], ["11", 25], ["12", 30], ["21", 20], ["22", 10]],
+    idcc: ["3043"],
+    caParSalarie: 45000,
   },
   {
     id: "tertiaire",
@@ -164,8 +203,19 @@ const SECTEURS: Secteur[] = [
       { intitule: "Assistant commercial (H/F)", rome: "D1401" },
     ],
     tranches: [["02", 20], ["03", 20], ["11", 25], ["12", 20], ["21", 10], ["22", 5]],
+    idcc: ["1486"],
+    caParSalarie: 120000,
   },
 ];
+
+/** Conventions par code NAF quand la NAF dit mieux que le secteur (grande distribution, garage). */
+const IDCC_PAR_NAF: Record<string, string[]> = {
+  "47.11F": ["2216"],
+  "45.20A": ["1090"],
+  "46.90Z": ["573"],
+  "69.20Z": ["787"],
+  "56.21Z": ["1979"],
+};
 
 const AGENCES_INTERIM = ["Adecco", "Manpower", "Randstad", "Proman", "Crit", "Synergie", "Actual", "Temporis"];
 
@@ -215,9 +265,14 @@ type EtabFixture = {
   etatAdministratif: string;
   estSiege: number;
   secteurId: string;
+  codeInsee: string;
+  caractereEmployeur: string;
+  idcc: string[];
+  enseignes: string[] | null;
+  nomCommercial: string | null;
 };
 
-export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStats {
+export async function seedFixtures(db: PostgresJsDatabase<typeof schema>): Promise<SeedStats> {
   const rng = mulberry32(SEED);
   const now = new Date();
   const nowIso = now.toISOString();
@@ -287,11 +342,24 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       etatAdministratif: args.etat ?? "A",
       estSiege: args.estSiege === false ? 0 : 1,
       secteurId: args.secteurId,
+      codeInsee: args.commune.insee,
+      caractereEmployeur: t.midpoint > 0 ? "O" : "N",
+      idcc: IDCC_PAR_NAF[args.naf] ?? SECTEURS.find((sec) => sec.id === args.secteurId)?.idcc ?? [],
+      // Une entreprise sur six est connue sous une enseigne différente de sa raison sociale.
+      enseignes: chance(rng, 0.16) ? [`${args.denomination.split(" ")[0]} ${pick(rng, ["PRO", "SERVICES", "03", "AUVERGNE"])}`] : null,
+      nomCommercial: null,
     };
     etabs.push(etab);
     return etab;
   }
 
+  const etabParSiret = () => new Map(etabs.map((e) => [e.siret, e]));
+
+  /**
+   * Chaque signal porte le LIEU DU BESOIN et les métiers induits : par défaut
+   * l'établissement lui-même (lieu de travail = siège), sauf quand la fixture
+   * dit autre chose — un chantier ailleurs, un entrepôt en construction.
+   */
   function ajouteSignal(args: {
     siret: string | null;
     siren: string | null;
@@ -300,8 +368,20 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     occurredAt: string;
     confidence: number;
     payload: Record<string, unknown>;
+    /** Commune du besoin (chantier, lieu de travail) ; à défaut celle de l'établissement. */
+    lieu?: Commune | null;
+    romes?: string[] | null;
   }): typeof schema.signal.$inferInsert {
     sigCounter++;
+    let lieu: schema.SignalLieu | null = null;
+    if (args.lieu) {
+      lieu = { lat: jitter(args.lieu.lat), lon: jitter(args.lieu.lon), libelle: args.lieu.nom };
+    } else if (args.siret) {
+      const e = etabParSiret().get(args.siret);
+      if (e) lieu = { lat: e.lat, lon: e.lon, libelle: e.commune };
+    }
+    const rome = typeof args.payload.rome === "string" ? (args.payload.rome as string) : null;
+    const romes = args.romes ?? (rome ? [rome] : null);
     const s: typeof schema.signal.$inferInsert = {
       id: `fx-sig-${String(sigCounter).padStart(5, "0")}`,
       siret: args.siret,
@@ -313,9 +393,68 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       confidence: Math.round(args.confidence * 100) / 100,
       payload: args.payload,
       rawRef: `fx-${String(sigCounter).padStart(5, "0")}`,
+      lieu,
+      romes,
     };
     signaux.push(s);
     return s;
+  }
+
+  /* Contenu d'annonce pour le bassin de démo. France Travail publie une
+     description, un salaire et des compétences ; sans eux, la chronologie de
+     démo se déplie sur du vide. Reconstitué à partir du métier ROME, avec un
+     RNG dérivé du compteur d'offres : le flux aléatoire principal — donc le
+     classement du bassin — n'est pas décalé d'un cran. */
+  function contenuOffre(args: {
+    id: number;
+    intitule: string;
+    rome: string;
+    typeContrat: string;
+    dureeJours: number | null;
+    entrepriseNom: string;
+    commune: Commune;
+  }): Record<string, unknown> {
+    const r = mulberry32(SEED + args.id);
+    const domaine = args.rome.charAt(0).toUpperCase();
+    const pool = COMPETENCES_PAR_DOMAINE[domaine] ?? COMPETENCES_PAR_DOMAINE.M;
+    const competences = pool.slice(0, randInt(r, 3, Math.min(5, pool.length)));
+    const metier = args.intitule.replace(/\s*\(H\/F\)\s*$/, "");
+    const bas = 1900 + randInt(r, 0, 10) * 50;
+    const haut = bas + randInt(r, 1, 6) * 50;
+    const annees = randInt(r, 0, 5);
+    const contratFr =
+      args.typeContrat === "MIS"
+        ? `Intérim${args.dureeJours ? ` - ${args.dureeJours} Jour(s)` : ""}`
+        : args.typeContrat === "CDD"
+          ? `CDD${args.dureeJours ? ` - ${Math.round(args.dureeJours / 30)} Mois` : ""}`
+          : "CDI";
+    const description = [
+      `${args.entrepriseNom} recherche un(e) ${metier} pour son site de ${args.commune.nom}.`,
+      "",
+      "Vos missions :",
+      ...competences.map((c) => `- ${c}`),
+      "",
+      `Poste à pourvoir en ${contratFr}, 35H par semaine. Rémunération selon profil et expérience.`,
+      annees === 0
+        ? "Débutant accepté : une formation interne est assurée à la prise de poste."
+        : `Une expérience d'au moins ${annees} an(s) sur un poste similaire est attendue.`,
+    ].join("\n");
+
+    return {
+      description,
+      appellationLibelle: metier,
+      romeLibelle: metier,
+      typeContratLibelle: contratFr,
+      salaireLibelle: `Mensuel de ${bas}.0 Euros à ${haut}.0 Euros sur 12 mois`,
+      salaireComplements: chance(r, 0.4) ? ["Primes", "Titres restaurant / Prime de panier"] : null,
+      dureeTravailLibelle: "35H/semaine",
+      horaires: ["35H/semaine", chance(r, 0.3) ? "Travail posté (2x8, 3x8)" : "Travail en journée"],
+      experienceLibelle: annees === 0 ? "Débutant accepté" : `${annees} An(s)`,
+      qualificationLibelle: chance(r, 0.5) ? "Employé qualifié" : "Ouvrier spécialisé",
+      competences,
+      savoirEtre: SAVOIR_ETRE.slice(0, randInt(r, 2, 4)),
+      permis: "FNAI".includes(domaine) ? ["B - Véhicule léger (exigé)"] : null,
+    };
   }
 
   function ajouteOffre(args: {
@@ -329,10 +468,17 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     parAgence?: boolean;
     publieeIlYaJours: number;
     closeIlYaJours?: number | null;
+    nombrePostes?: number;
+    manqueCandidats?: boolean;
+    /** Nombre d'actualisations vues chez la source ; la dernière est datée au plus tôt hier. */
+    nbActualisations?: number;
+    trancheEffectifEtab?: string | null;
   }) {
     offreCounter++;
+    const nbActu = args.nbActualisations ?? 0;
+    const idOffre = `fx-offre-${String(offreCounter).padStart(5, "0")}`;
     offres.push({
-      id: `fx-offre-${String(offreCounter).padStart(5, "0")}`,
+      id: idOffre,
       siret: args.siret,
       entrepriseNom: args.entrepriseNom,
       intitule: args.intitule,
@@ -341,14 +487,31 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       rome: args.rome,
       codePostal: args.commune.cp,
       commune: args.commune.nom,
+      codeInsee: args.commune.insee,
+      lat: jitter(args.commune.lat),
+      lon: jitter(args.commune.lon),
       parAgenceInterim: args.parAgence ? 1 : 0,
       datePublication: iso(args.publieeIlYaJours),
+      dateActualisation: nbActu > 0 ? iso(Math.max(1, Math.floor(args.publieeIlYaJours / (nbActu + 1)))) : null,
+      nbActualisations: nbActu,
+      nombrePostes: args.nombrePostes ?? 1,
+      manqueCandidats: args.manqueCandidats ? 1 : 0,
+      trancheEffectifEtab: args.trancheEffectifEtab ?? null,
       firstSeenAt: iso(args.publieeIlYaJours),
       lastSeenAt: args.closeIlYaJours != null ? iso(args.closeIlYaJours) : nowIso,
       closedAt: args.closeIlYaJours != null ? iso(args.closeIlYaJours) : null,
       source: "fixture:francetravail",
-      payload: {},
+      payload: contenuOffre({
+        id: offreCounter,
+        intitule: args.intitule,
+        rome: args.rome,
+        typeContrat: args.typeContrat,
+        dureeJours: args.dureeJours ?? null,
+        entrepriseNom: args.entrepriseNom,
+        commune: args.commune,
+      }),
     });
+    return idOffre;
   }
 
   const confFt = () => 0.8 + rng() * 0.19;
@@ -383,19 +546,32 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       premierePublication: iso(52),
     },
   });
+  // Le chantier est à Saint-Pourçain, à 25 km du siège de Cusset : c'est là qu'est le besoin.
   ajouteSignal({
     siret: p1.siret,
     siren: p1.siren,
     type: "MARCHE_ATTRIBUE",
-    source: "fixture:decp",
+    source: "fixture:boamp",
     occurredAt: iso(24),
     confidence: 1,
     payload: {
-      objet: "Réhabilitation de voirie — quartier des Ailes",
+      objet: "Aménagement de l'entrée Nord — voirie et réseaux",
       montant: 480000,
-      acheteur: "Vichy Communauté",
+      acheteur: "21030254000018",
+      acheteurNom: "Commune de Saint-Pourçain-sur-Sioule",
       cpv: "45233140-2",
     },
+    lieu: communeByNom.get("Saint-Pourçain-sur-Sioule")!,
+    romes: ["F1702", "F1302", "F1704"],
+  });
+  ajouteSignal({
+    siret: p1.siret,
+    siren: p1.siren,
+    type: "OFFRE_MANQUE_CANDIDATS",
+    source: "fixture:francetravail",
+    occurredAt: iso(6),
+    confidence: 0.92,
+    payload: { intitule: "Maçon VRD (H/F)", rome: "F1702", typeContrat: "CDI" },
   });
   ajouteSignal({
     siret: p1.siret,
@@ -439,6 +615,8 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     typeContrat: "CDI",
     commune: p1Commune,
     publieeIlYaJours: 6,
+    manqueCandidats: true,
+    trancheEffectifEtab: "21",
   });
 
   // P2 — logistique en croissance d'effectif → tête de classement
@@ -488,6 +666,15 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     occurredAt: iso(4),
     confidence: 0.94,
     payload: { intitule: "Préparateur de commandes (H/F)", rome: "N1103", typeContrat: "CDD" },
+  });
+  ajouteSignal({
+    siret: p2.siret,
+    siren: p2.siren,
+    type: "OFFRE_MULTIPOSTES",
+    source: "fixture:francetravail",
+    occurredAt: iso(4),
+    confidence: 0.94,
+    payload: { intitule: "Préparateur de commandes (H/F)", rome: "N1103", nombrePostes: 6 },
   });
   for (const j of [4, 7, 9, 11, 13, 16]) {
     ajouteOffre({
@@ -570,6 +757,137 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
       publieeIlYaJours: j,
     });
   }
+
+  // P5 — plasturgie qui signe un accord d'heures sup et voit son CA grimper → capacité tendue
+  const p5Commune = communeByNom.get("Saint-Yorre")!;
+  const p5 = ajouteEtab({
+    siren: "900100005",
+    nic: "00011",
+    denomination: "PLASTIQUES DES SOURCES",
+    naf: "22.22Z",
+    tranche: "22",
+    commune: p5Commune,
+    dateCreation: "2004-10-05",
+    secteurId: "industrie",
+  });
+  ajouteSignal({
+    siret: p5.siret,
+    siren: p5.siren,
+    type: "ACCORD_SURCHARGE",
+    source: "fixture:acco",
+    occurredAt: iso(33),
+    confidence: 1,
+    payload: {
+      themes: ["052", "059"],
+      themesFr: "heures supplémentaires, modulation",
+      titre: "Accord relatif au contingent d'heures supplémentaires et à l'annualisation du temps de travail",
+    },
+  });
+  ajouteSignal({
+    siret: p5.siret,
+    siren: p5.siren,
+    type: "CA_CROISSANCE",
+    source: "fixture:sirene",
+    occurredAt: iso(58),
+    confidence: 1,
+    payload: { annee: 2024, ca: 21400000, caPrecedent: 17300000, deltaPct: 23.7 },
+  });
+  ajouteSignal({
+    siret: p5.siret,
+    siren: p5.siren,
+    type: "OFFRE_REACTUALISEE",
+    source: "fixture:francetravail",
+    occurredAt: iso(3),
+    confidence: 0.93,
+    payload: {
+      intitule: "Opérateur de production (H/F)",
+      rome: "H3302",
+      nbActualisations: 3,
+      premierePublication: iso(38),
+    },
+  });
+  ajouteOffre({
+    siret: p5.siret,
+    entrepriseNom: p5.denomination,
+    intitule: "Opérateur de production (H/F)",
+    rome: "H3302",
+    typeContrat: "CDD",
+    dureeJours: 90,
+    commune: p5Commune,
+    publieeIlYaJours: 38,
+    nbActualisations: 3,
+    nombrePostes: 2,
+    trancheEffectifEtab: "22",
+  });
+
+  // P6 — logisticien qui construit un entrepôt à Bessay : chantier d'abord, exploitation ensuite
+  const p6Commune = communeByNom.get("Moulins")!;
+  const p6 = ajouteEtab({
+    siren: "900100006",
+    nic: "00011",
+    denomination: "BOURBONNAIS LOGISTIQUE",
+    naf: "52.10B",
+    tranche: "21",
+    commune: p6Commune,
+    dateCreation: "2011-02-28",
+    secteurId: "logistique",
+  });
+  ajouteSignal({
+    siret: p6.siret,
+    siren: p6.siren,
+    type: "PERMIS_LOCAUX",
+    source: "fixture:sitadel",
+    occurredAt: iso(60),
+    confidence: 1,
+    payload: { surface: 8200, destination: "Entrepôt", nature: "Construction nouvelle", commune: "Bessay-sur-Allier" },
+    lieu: communeByNom.get("Bessay-sur-Allier")!,
+    romes: ["F1703", "F1704", "N1103", "N1101"],
+  });
+  ajouteSignal({
+    siret: p6.siret,
+    siren: p6.siren,
+    type: "OFFRE_DIRECTE",
+    source: "fixture:francetravail",
+    occurredAt: iso(9),
+    confidence: 0.91,
+    payload: { intitule: "Cariste CACES 1-3-5 (H/F)", rome: "N1101", typeContrat: "CDI" },
+  });
+
+  // Appels d'offres ouverts sur le bassin : signaux de Tempo, aucun SIRET
+  ajouteSignal({
+    siret: null,
+    siren: null,
+    type: "AO_OUVERT",
+    source: "fixture:boamp",
+    occurredAt: iso(11),
+    confidence: 1,
+    payload: {
+      acheteurNom: "Vichy Communauté",
+      objet: "Travaux de réfection de voirie sur les communes de l'agglomération — programme 2027",
+      typeMarche: "TRAVAUX",
+      descripteurs: ["Voirie et réseaux divers"],
+      dateLimiteReponse: iso(-30),
+    },
+    lieu: communeByNom.get("Vichy")!,
+    romes: ["F1702", "F1302", "F1704"],
+  });
+  ajouteSignal({
+    siret: null,
+    siren: null,
+    type: "AO_OUVERT",
+    source: "fixture:boamp",
+    occurredAt: iso(5),
+    confidence: 1,
+    payload: {
+      acheteurNom: "Conseil départemental de l'Allier",
+      objet: "Nettoyage des locaux des collèges du département",
+      typeMarche: "SERVICES",
+      descripteurs: ["Nettoyage de locaux"],
+      dateLimiteReponse: iso(-35),
+    },
+    lieu: communeByNom.get("Moulins")!,
+    romes: ["K2204"],
+  });
 
   // -------------------------------------------------------------------------
   // Volume : ~396 établissements générés
@@ -657,18 +975,24 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
     for (let k = 0; k < nbSignaux; k++) {
       const type = estCible
         ? pickWeighted(rng, [
-            ["OFFRE_DIRECTE", 48],
-            ["CDD_COURT_REPETE", 12],
-            ["OFFRE_REPUBLIEE", 8],
-            ["OFFRE_VELOCITE", 5],
+            ["OFFRE_DIRECTE", 40],
+            ["CDD_COURT_REPETE", 10],
+            ["OFFRE_REPUBLIEE", 7],
+            ["OFFRE_REACTUALISEE", 6],
+            ["OFFRE_MANQUE_CANDIDATS", 5],
+            ["OFFRE_MULTIPOSTES", 4],
+            ["OFFRE_VELOCITE", 4],
             ["MARCHE_ATTRIBUE", 6],
-            ["EFFECTIF_UP", 8],
-            ["BODACC_CAPITAL", 6],
+            ["EFFECTIF_UP", 6],
+            ["CA_CROISSANCE", 5],
+            ["BODACC_CAPITAL", 5],
+            ["ACCORD_SURCHARGE", 2],
           ] as const)
         : pickWeighted(rng, [
-            ["OFFRE_DIRECTE", 75],
-            ["EFFECTIF_UP", 13],
-            ["BODACC_CAPITAL", 12],
+            ["OFFRE_DIRECTE", 70],
+            ["EFFECTIF_UP", 12],
+            ["CA_CROISSANCE", 8],
+            ["BODACC_CAPITAL", 10],
           ] as const);
 
       if (type === "OFFRE_DIRECTE") {
@@ -693,6 +1017,72 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
           dureeJours: cdd ? randInt(rng, 30, 180) : null,
           commune,
           publieeIlYaJours: j,
+        });
+      } else if (type === "OFFRE_MANQUE_CANDIDATS" || type === "OFFRE_MULTIPOSTES" || type === "OFFRE_REACTUALISEE") {
+        const offre = pick(rng, secteur.offres);
+        const j = ageRecent(30);
+        const nombrePostes = type === "OFFRE_MULTIPOSTES" ? randInt(rng, 2, 8) : 1;
+        const nbActualisations = type === "OFFRE_REACTUALISEE" ? randInt(rng, 2, 5) : 0;
+        const payload: Record<string, unknown> =
+          type === "OFFRE_MULTIPOSTES"
+            ? { intitule: offre.intitule, rome: offre.rome, nombrePostes }
+            : type === "OFFRE_REACTUALISEE"
+              ? { intitule: offre.intitule, rome: offre.rome, nbActualisations, premierePublication: iso(j + nbActualisations * 12) }
+              : { intitule: offre.intitule, rome: offre.rome, typeContrat: "CDI" };
+        ajouteSignal({
+          siret: etab.siret,
+          siren,
+          type,
+          source: "fixture:francetravail",
+          occurredAt: iso(j, randInt(rng, 0, 12)),
+          confidence: confFt(),
+          payload,
+        });
+        ajouteOffre({
+          siret: etab.siret,
+          entrepriseNom: nom,
+          intitule: offre.intitule,
+          rome: offre.rome,
+          typeContrat: "CDI",
+          commune,
+          publieeIlYaJours: type === "OFFRE_REACTUALISEE" ? j + nbActualisations * 12 : j,
+          nombrePostes,
+          manqueCandidats: type === "OFFRE_MANQUE_CANDIDATS",
+          nbActualisations,
+          trancheEffectifEtab: etab.trancheEffectif,
+        });
+      } else if (type === "CA_CROISSANCE") {
+        const caPrecedent = Math.round((etab.effectifEstime || 5) * secteur.caParSalarie * (0.8 + rng() * 0.4));
+        const delta = 0.15 + rng() * 0.3;
+        ajouteSignal({
+          siret: etab.siret,
+          siren,
+          type,
+          source: "fixture:sirene",
+          occurredAt: iso(randInt(rng, 30, 120)),
+          confidence: 1,
+          payload: {
+            annee: 2024,
+            ca: Math.round(caPrecedent * (1 + delta)),
+            caPrecedent,
+            deltaPct: Math.round(delta * 1000) / 10,
+          },
+        });
+      } else if (type === "ACCORD_SURCHARGE") {
+        const themes = pick(rng, [
+          { codes: ["052"], fr: "heures supplémentaires" },
+          { codes: ["059"], fr: "modulation du temps de travail" },
+          { codes: ["055"], fr: "travail de nuit" },
+          { codes: ["052", "059"], fr: "heures supplémentaires, modulation" },
+        ]);
+        ajouteSignal({
+          siret: etab.siret,
+          siren,
+          type,
+          source: "fixture:acco",
+          occurredAt: iso(randInt(rng, 15, 110)),
+          confidence: 1,
+          payload: { themes: themes.codes, themesFr: themes.fr, titre: `Accord d'entreprise relatif à : ${themes.fr}` },
         });
       } else if (type === "OFFRE_REPUBLIEE") {
         const offre = pick(rng, secteur.offres);
@@ -758,6 +1148,8 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
         const marche = pick(rng, objets);
         // montants log-uniformes entre 40 k€ et 600 k€
         const montant = Math.round(Math.exp(Math.log(40000) + rng() * (Math.log(600000) - Math.log(40000))) / 1000) * 1000;
+        // Un chantier sur trois est ailleurs que le siège : le besoin est sur le chantier.
+        const chantier = chance(rng, 0.33) ? pickWeighted(rng, COMMUNES.map((c) => [c, c.poids] as const)) : null;
         ajouteSignal({
           siret: etab.siret,
           siren,
@@ -765,7 +1157,9 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
           source: "fixture:decp",
           occurredAt: iso(randInt(rng, 5, 85)),
           confidence: 1,
-          payload: { objet: marche.objet, montant, acheteur: pick(rng, ACHETEURS_PUBLICS), cpv: marche.cpv },
+          payload: { objet: marche.objet, montant, acheteurNom: pick(rng, ACHETEURS_PUBLICS), cpv: marche.cpv },
+          lieu: chantier,
+          romes: romesDeCpv(marche.cpv),
         });
       } else if (type === "EFFECTIF_UP") {
         const rank = trancheRank(etab.trancheEffectif);
@@ -906,62 +1300,109 @@ export function seedFixtures(db: BetterSQLite3Database<typeof schema>): SeedStat
   }
 
   // -------------------------------------------------------------------------
+  // Rattachement signal → offre
+  // -------------------------------------------------------------------------
+  // Ici, signal et offre sont écrits côte à côte ; le vrai pipeline, lui, dérive
+  // le signal DEPUIS l'offre et en garde l'identifiant. On rétablit ce lien après
+  // coup — même SIRET (ou même agence), même intitulé, publication la plus proche
+  // de la date du signal — sinon la chronologie de démo n'aurait rien à déplier.
+  // Fait après génération pour ne pas décaler d'un cran le flux aléatoire.
+  const TYPES_LIABLES = new Set([
+    "OFFRE_DIRECTE",
+    "OFFRE_MANQUE_CANDIDATS",
+    "OFFRE_MULTIPOSTES",
+    "OFFRE_REACTUALISEE",
+    "OFFRE_REPUBLIEE",
+    "MISSION_CONCURRENT",
+  ]);
+  for (const sig of signaux) {
+    if (!TYPES_LIABLES.has(sig.type)) continue;
+    const p = (sig.payload ?? {}) as Record<string, unknown>;
+    const intitule = typeof p.intitule === "string" ? p.intitule : null;
+    if (!intitule) continue;
+    const candidates = offres.filter(
+      (o) =>
+        o.intitule === intitule &&
+        (sig.siret ? o.siret === sig.siret : o.entrepriseNom === p.agenceInterim),
+    );
+    if (candidates.length === 0) continue;
+    const cible = new Date(sig.occurredAt).getTime();
+    const ecart = (o: (typeof candidates)[number]) =>
+      Math.abs(new Date(o.datePublication).getTime() - cible);
+    const meilleure = candidates.reduce((a, b) => (ecart(a) <= ecart(b) ? a : b));
+    sig.payload = { ...p, offreId: meilleure.id };
+  }
+
+  // -------------------------------------------------------------------------
   // Écriture en base (transaction, purge préalable des fixtures)
   // -------------------------------------------------------------------------
 
   const sirens = new Map<string, typeof schema.entreprise.$inferInsert>();
   for (const e of etabs) {
     if (!sirens.has(e.siren)) {
+      // Finances plausibles (RNE) : CA proportionnel à l'effectif, résultat entre −3 % et +8 %.
+      const secteur = SECTEURS.find((sec) => sec.id === e.secteurId)!;
+      const ca = Math.round((e.effectifEstime || 3) * secteur.caParSalarie * (0.75 + rng() * 0.5));
+      const caPrecedent = Math.round(ca / (0.92 + rng() * 0.2));
+      const marge = -0.03 + rng() * 0.11;
       sirens.set(e.siren, {
         siren: e.siren,
         denomination: e.denomination,
         categorie: e.effectifEstime >= 250 ? "ETI" : "PME",
         dateCreation: e.dateCreation,
         etat: e.etatAdministratif === "F" ? "C" : "A",
+        caractereEmployeur: e.caractereEmployeur,
+        nbEtabsOuverts: etabs.filter((x) => x.siren === e.siren && x.etatAdministratif === "A").length,
+        caAnnee: 2024,
+        ca,
+        caPrecedent,
+        resultatNet: Math.round(ca * marge),
+        resultatNetPrecedent: Math.round(caPrecedent * (marge - 0.01)),
+        idcc: e.idcc,
+        complements: { convention_collective_renseignee: e.idcc.length > 0 },
       });
     }
   }
   entreprises.push(...sirens.values());
 
-  db.transaction((tx) => {
-    tx.delete(schema.lead).run();
-    tx.delete(schema.scoreStrate).run();
-    tx.delete(schema.scoreSismo).run();
-    tx.delete(schema.signal).where(like(schema.signal.source, "fixture:%")).run();
-    tx.delete(schema.offreBrute).where(like(schema.offreBrute.source, "fixture:%")).run();
-    tx.delete(schema.resolutionQueue).where(like(schema.resolutionQueue.source, "fixture:%")).run();
-    tx.delete(schema.ingestionRun).where(like(schema.ingestionRun.source, "fixture:%")).run();
-    tx.delete(schema.etablissement).where(like(schema.etablissement.siren, "900%")).run();
-    tx.delete(schema.entreprise).where(like(schema.entreprise.siren, "900%")).run();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const etabRows = etabs.map(({ secteurId, ...row }) => ({ ...row, trancheEffectifSource: "sirene" }));
 
-    for (const e of entreprises) tx.insert(schema.entreprise).values(e).run();
-    for (const e of etabs) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { secteurId, ...row } = e;
-      tx.insert(schema.etablissement).values(row).run();
-    }
-    for (const s of signaux) tx.insert(schema.signal).values(s).run();
-    for (const o of offres) tx.insert(schema.offreBrute).values(o).run();
-    for (const r of resolutions) tx.insert(schema.resolutionQueue).values(r).run();
+  // Journal d'ingestion : un run fictif par source pour la page /ingestion
+  const parSource = new Map<string, number>();
+  for (const s of signaux) parSource.set(s.source, (parSource.get(s.source) ?? 0) + 1);
+  const runs = [...parSource].map(([source, count], i) => ({
+    id: `fx-run-${i + 1}`,
+    source,
+    startedAt: iso(0, 2),
+    finishedAt: iso(0, 1),
+    recordsIn: count + randInt(rng, 5, 40),
+    recordsOut: count,
+    errors: [],
+  }));
 
-    // Journal d'ingestion : un run fictif par source pour la page /ingestion
-    const parSource = new Map<string, number>();
-    for (const s of signaux) parSource.set(s.source, (parSource.get(s.source) ?? 0) + 1);
-    let runId = 0;
-    for (const [source, count] of parSource) {
-      runId++;
-      tx.insert(schema.ingestionRun)
-        .values({
-          id: `fx-run-${runId}`,
-          source,
-          startedAt: iso(0, 2),
-          finishedAt: iso(0, 1),
-          recordsIn: count + randInt(rng, 5, 40),
-          recordsOut: count,
-          errors: [],
-        })
-        .run();
-    }
+  // Une transaction unique, en insertions par lots : sur une base distante,
+  // une requête par ligne mettrait le seed à genoux.
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.lead);
+    await tx.delete(schema.scoreStrate);
+    await tx.delete(schema.scoreSismo);
+    await tx.delete(schema.scoreTempo);
+    await tx.delete(schema.scoreSnapshot).where(like(schema.scoreSnapshot.siret, "900%"));
+    await tx.delete(schema.crmOutcome).where(like(schema.crmOutcome.siret, "900%"));
+    await tx.delete(schema.signal).where(like(schema.signal.source, "fixture:%"));
+    await tx.delete(schema.offreBrute).where(like(schema.offreBrute.source, "fixture:%"));
+    await tx.delete(schema.resolutionQueue).where(like(schema.resolutionQueue.source, "fixture:%"));
+    await tx.delete(schema.ingestionRun).where(like(schema.ingestionRun.source, "fixture:%"));
+    await tx.delete(schema.etablissement).where(like(schema.etablissement.siren, "900%"));
+    await tx.delete(schema.entreprise).where(like(schema.entreprise.siren, "900%"));
+
+    for (const paquet of chunk(entreprises)) await tx.insert(schema.entreprise).values(paquet);
+    for (const paquet of chunk(etabRows)) await tx.insert(schema.etablissement).values(paquet);
+    for (const paquet of chunk(signaux)) await tx.insert(schema.signal).values(paquet);
+    for (const paquet of chunk(offres)) await tx.insert(schema.offreBrute).values(paquet);
+    for (const paquet of chunk(resolutions)) await tx.insert(schema.resolutionQueue).values(paquet);
+    for (const paquet of chunk(runs)) await tx.insert(schema.ingestionRun).values(paquet);
   });
 
   return {

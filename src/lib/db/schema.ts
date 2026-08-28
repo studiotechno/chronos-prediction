@@ -1,30 +1,52 @@
 /**
- * Schéma Drizzle — SQLite en V0, conçu pour rester portable vers Postgres :
- * uniquement text / integer / real, timestamps en texte ISO 8601 UTC,
- * JSON en colonnes text (mode json), aucune fonction SQLite dans les défauts.
+ * Schéma Drizzle — PostgreSQL (Supabase).
+ * Types volontairement sobres : text / integer / double precision / jsonb.
+ * Les timestamps restent du texte ISO 8601 UTC (tri lexicographique correct,
+ * aucune conversion de fuseau implicite) et les booléens des entiers 0/1,
+ * conformément à ce que lit le reste du code.
+ *
+ * V2 : le référentiel porte ce que l'API Recherche d'entreprises sait vraiment
+ * (finances, convention collective, caractère employeur, enseignes), les
+ * signaux portent le LIEU DU BESOIN et les métiers induits, les scores gardent
+ * un historique quotidien (score_snapshot) et le lead porte sa fenêtre d'appel.
  */
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
-  real,
+  doublePrecision,
+  jsonb,
   uniqueIndex,
   index,
-} from "drizzle-orm/sqlite-core";
+  primaryKey,
+} from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
-// Référentiel entreprises / établissements (SIRENE)
+// Référentiel entreprises / établissements (SIRENE + RNE via l'API Recherche)
 // ---------------------------------------------------------------------------
 
-export const entreprise = sqliteTable("entreprise", {
+export const entreprise = pgTable("entreprise", {
   siren: text("siren").primaryKey(),
   denomination: text("denomination").notNull(),
   categorie: text("categorie"), // PME, ETI, GE...
   dateCreation: text("date_creation"),
   etat: text("etat"), // A (actif) / C (cessé)
+  /** O / N : l'unité légale emploie-t-elle des salariés (INSEE). */
+  caractereEmployeur: text("caractere_employeur"),
+  nbEtabsOuverts: integer("nb_etabs_ouverts"),
+  /** Dernier exercice connu (RNE via l'API Recherche) : chiffre d'affaires, résultat net. */
+  caAnnee: integer("ca_annee"),
+  ca: doublePrecision("ca"),
+  caPrecedent: doublePrecision("ca_precedent"),
+  resultatNet: doublePrecision("resultat_net"),
+  resultatNetPrecedent: doublePrecision("resultat_net_precedent"),
+  /** Conventions collectives (IDCC) déclarées en DSN pour l'unité légale. */
+  idcc: jsonb("idcc").$type<string[]>(),
+  /** Vue rapide de l'API Recherche : est_rge, est_siae, egapro_renseignee… */
+  complements: jsonb("complements").$type<Record<string, unknown>>(),
 });
 
-export const etablissement = sqliteTable(
+export const etablissement = pgTable(
   "etablissement",
   {
     siret: text("siret").primaryKey(),
@@ -34,19 +56,34 @@ export const etablissement = sqliteTable(
     denomination: text("denomination").notNull(),
     naf: text("naf").notNull(), // ex: 43.99C
     trancheEffectif: text("tranche_effectif"), // code INSEE (00, 01, 02, 03, 11, 12, 21, 22, 31, 32, 41, 42, 51, 52, 53)
+    /** D'où vient la tranche retenue : sirene, francetravail (trancheEffectifEtab d'une offre), estimation. */
+    trancheEffectifSource: text("tranche_effectif_source"),
     effectifEstime: integer("effectif_estime"), // point médian de la tranche
     codePostal: text("code_postal"),
     commune: text("commune"),
-    lat: real("lat"),
-    lon: real("lon"),
+    codeInsee: text("code_insee"),
+    lat: doublePrecision("lat"),
+    lon: doublePrecision("lon"),
     dateCreation: text("date_creation"),
+    dateDebutActivite: text("date_debut_activite"),
     etatAdministratif: text("etat_administratif"), // A / F
     estSiege: integer("est_siege").notNull().default(0), // booléen 0/1
+    caractereEmployeur: text("caractere_employeur"),
+    enseignes: jsonb("enseignes").$type<string[]>(),
+    nomCommercial: text("nom_commercial"),
+    idcc: jsonb("idcc").$type<string[]>(),
+    /** Installation classée (Géorisques) : 0/1, et son régime (Enregistrement, Autorisation, Déclaration). */
+    icpe: integer("icpe").notNull().default(0),
+    icpeRegime: text("icpe_regime"),
+    /** Potentiel d'embauche La Bonne Boîte (0-5 étoiles) et date de lecture. */
+    lbbScore: doublePrecision("lbb_score"),
+    lbbMaj: text("lbb_maj"),
   },
   (t) => [
     index("etablissement_siren_idx").on(t.siren),
     index("etablissement_naf_idx").on(t.naf),
     index("etablissement_cp_idx").on(t.codePostal),
+    index("etablissement_insee_idx").on(t.codeInsee),
   ],
 );
 
@@ -54,23 +91,30 @@ export const etablissement = sqliteTable(
 // Signaux (dérivées datées, jamais de la donnée brute recopiée)
 // ---------------------------------------------------------------------------
 
-export const signal = sqliteTable(
+export type SignalLieu = { lat: number; lon: number; libelle: string | null };
+
+export const signal = pgTable(
   "signal",
   {
     id: text("id").primaryKey(),
-    siret: text("siret"), // nullable : signal en attente de rapprochement, ou signal de bassin (MISSION_CONCURRENT)
+    siret: text("siret"), // nullable : signal en attente de rapprochement, ou signal de bassin (MISSION_CONCURRENT, AO_OUVERT)
     siren: text("siren"),
-    type: text("type").notNull(), // OFFRE_DIRECTE, OFFRE_VELOCITE, OFFRE_REPUBLIEE, CDD_COURT_REPETE, MISSION_CONCURRENT, MARCHE_ATTRIBUE, EFFECTIF_UP, BODACC_CAPITAL, BODACC_RISQUE
-    source: text("source").notNull(), // francetravail, decp, sirene, bodacc, fixture:*
+    type: text("type").notNull(), // voir SIGNAL_TYPES dans scoring/weights-defaults.ts
+    source: text("source").notNull(), // francetravail, decp, boamp, sirene, bodacc, acco, georisques, fixture:*
     occurredAt: text("occurred_at").notNull(), // ISO 8601 UTC
     ingestedAt: text("ingested_at").notNull(),
-    confidence: real("confidence").notNull(), // 0..1, fiabilité du rapprochement au SIRET
-    payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>(),
+    confidence: doublePrecision("confidence").notNull(), // 0..1, fiabilité du rapprochement au SIRET
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
     rawRef: text("raw_ref").notNull(), // identifiant chez la source, pour idempotence
+    /** Lieu du besoin (chantier, lieu de travail, site) — pas le siège. */
+    lieu: jsonb("lieu").$type<SignalLieu>(),
+    /** Métiers ROME induits par le signal (offre : son ROME ; marché : par descripteur/CPV). */
+    romes: jsonb("romes").$type<string[]>(),
   },
   (t) => [
     uniqueIndex("signal_source_rawref_uq").on(t.source, t.rawRef),
     index("signal_siret_idx").on(t.siret),
+    index("signal_siren_idx").on(t.siren),
     index("signal_type_idx").on(t.type),
   ],
 );
@@ -78,10 +122,10 @@ export const signal = sqliteTable(
 // ---------------------------------------------------------------------------
 // Staging interne : offres brutes France Travail.
 // Hors scoring — sert uniquement à calculer les dérivées (vélocité,
-// republication, CDD répétés) qui exigent un historique d'offres.
+// republication, CDD répétés, réactualisation, manque de candidats).
 // ---------------------------------------------------------------------------
 
-export const offreBrute = sqliteTable(
+export const offreBrute = pgTable(
   "offre_brute",
   {
     id: text("id").primaryKey(), // id France Travail
@@ -93,13 +137,23 @@ export const offreBrute = sqliteTable(
     rome: text("rome"),
     codePostal: text("code_postal"),
     commune: text("commune"),
+    codeInsee: text("code_insee"),
+    lat: doublePrecision("lat"),
+    lon: doublePrecision("lon"),
     parAgenceInterim: integer("par_agence_interim").notNull().default(0),
     datePublication: text("date_publication").notNull(),
+    /** Dernière actualisation vue chez la source, et combien de fois elle a changé. */
+    dateActualisation: text("date_actualisation"),
+    nbActualisations: integer("nb_actualisations").notNull().default(0),
+    nombrePostes: integer("nombre_postes"),
+    manqueCandidats: integer("manque_candidats").notNull().default(0),
+    /** Tranche d'effectif de l'établissement employeur, telle que publiée par France Travail. */
+    trancheEffectifEtab: text("tranche_effectif_etab"),
     firstSeenAt: text("first_seen_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
     closedAt: text("closed_at"), // renseigné quand l'offre disparaît de la source
     source: text("source").notNull(),
-    payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>(),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
   },
   (t) => [
     index("offre_siret_idx").on(t.siret),
@@ -111,11 +165,11 @@ export const offreBrute = sqliteTable(
 // Poids de scoring — AUCUNE constante magique dans le code
 // ---------------------------------------------------------------------------
 
-export const weights = sqliteTable("weights", {
+export const weights = pgTable("weights", {
   key: text("key").primaryKey(),
-  value: real("value").notNull(),
-  min: real("min").notNull(),
-  max: real("max").notNull(),
+  value: doublePrecision("value").notNull(),
+  min: doublePrecision("min").notNull(),
+  max: doublePrecision("max").notNull(),
   labelFr: text("label_fr").notNull(),
   descriptionFr: text("description_fr").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -133,17 +187,25 @@ export type ScoreComponent = {
   detailFr?: string;
 };
 
-export const scoreStrate = sqliteTable("score_strate", {
+export const scoreStrate = pgTable("score_strate", {
   siret: text("siret").primaryKey(),
-  score: real("score").notNull(),
-  components: text("components", { mode: "json" }).$type<ScoreComponent[]>(),
+  score: doublePrecision("score").notNull(),
+  components: jsonb("components").$type<ScoreComponent[]>(),
   computedAt: text("computed_at").notNull(),
 });
 
-export const scoreSismo = sqliteTable("score_sismo", {
+export const scoreSismo = pgTable("score_sismo", {
   siret: text("siret").primaryKey(),
-  score: real("score").notNull(),
-  components: text("components", { mode: "json" }).$type<ScoreComponent[]>(),
+  score: doublePrecision("score").notNull(),
+  components: jsonb("components").$type<ScoreComponent[]>(),
+  computedAt: text("computed_at").notNull(),
+});
+
+/** Tempo — le « quand » : facteur autour de 1, avec ses composantes explicables. */
+export const scoreTempo = pgTable("score_tempo", {
+  siret: text("siret").primaryKey(),
+  score: doublePrecision("score").notNull(),
+  components: jsonb("components").$type<ScoreComponent[]>(),
   computedAt: text("computed_at").notNull(),
 });
 
@@ -155,20 +217,49 @@ export type TopSignal = {
   resumeFr: string;
 };
 
-export const lead = sqliteTable(
+export const lead = pgTable(
   "lead",
   {
     siret: text("siret").primaryKey(),
-    scoreFinal: real("score_final").notNull(),
-    strate: real("strate").notNull(),
-    sismo: real("sismo").notNull(),
+    scoreFinal: doublePrecision("score_final").notNull(),
+    strate: doublePrecision("strate").notNull(),
+    sismo: doublePrecision("sismo").notNull(),
+    tempo: doublePrecision("tempo").notNull().default(1),
     statut: text("statut").notNull().default("nouveau"), // nouveau, contacte, qualifie, perdu, gagne
     segment: text("segment").notNull().default("chaud"), // chaud | nurturing
     raisonFr: text("raison_fr").notNull(),
-    topSignals: text("top_signals", { mode: "json" }).$type<TopSignal[]>(),
+    /** Ce qu'on propose au téléphone : métiers induits par les signaux. */
+    propositionFr: text("proposition_fr"),
+    topSignals: jsonb("top_signals").$type<TopSignal[]>(),
+    /** Fenêtre d'appel dérivée des noyaux à retard (ISO dates). Vide = maintenant. */
+    fenetreDebut: text("fenetre_debut"),
+    fenetreFin: text("fenetre_fin"),
+    /** Lieu du besoin le plus proche de l'agence, et sa distance. */
+    lieuBesoinFr: text("lieu_besoin_fr"),
+    distanceBesoinKm: doublePrecision("distance_besoin_km"),
+    romesInduits: jsonb("romes_induits").$type<string[]>(),
     computedAt: text("computed_at").notNull(),
   },
   (t) => [index("lead_segment_idx").on(t.segment)],
+);
+
+/**
+ * Historique quotidien des scores : la mémoire du moteur. Sans elle, ni
+ * backtest, ni tendance, ni « monté de 30 points cette semaine ».
+ */
+export const scoreSnapshot = pgTable(
+  "score_snapshot",
+  {
+    jour: text("jour").notNull(), // YYYY-MM-DD (UTC)
+    siret: text("siret").notNull(),
+    strate: doublePrecision("strate").notNull(),
+    sismo: doublePrecision("sismo").notNull(),
+    tempo: doublePrecision("tempo").notNull(),
+    scoreFinal: doublePrecision("score_final").notNull(),
+    segment: text("segment").notNull(),
+    topTypes: jsonb("top_types").$type<string[]>(),
+  },
+  (t) => [primaryKey({ columns: [t.jour, t.siret] }), index("snapshot_siret_idx").on(t.siret)],
 );
 
 // ---------------------------------------------------------------------------
@@ -183,13 +274,13 @@ export type CandidatResolution = {
   similarite: number;
 };
 
-export const resolutionQueue = sqliteTable("resolution_queue", {
+export const resolutionQueue = pgTable("resolution_queue", {
   id: text("id").primaryKey(),
   source: text("source").notNull(),
   rawDenomination: text("raw_denomination").notNull(),
   rawCodePostal: text("raw_code_postal"),
   rawNaf: text("raw_naf"),
-  candidats: text("candidats", { mode: "json" }).$type<CandidatResolution[]>(),
+  candidats: jsonb("candidats").$type<CandidatResolution[]>(),
   statut: text("statut").notNull().default("en_attente"), // en_attente, resolu, rejete
   resolvedSiret: text("resolved_siret"),
   signalId: text("signal_id"), // signal à rattacher une fois résolu
@@ -198,28 +289,49 @@ export const resolutionQueue = sqliteTable("resolution_queue", {
 
 // ---------------------------------------------------------------------------
 // Agence (V0 : mono-agence, première ligne)
+//
+// La ligne est créée par l'inscription dans l'application (/inscription) :
+// son absence est précisément ce qui déclenche l'onboarding. Elle porte à la
+// fois l'identité du compte et la zone de prospection — un compte, une zone,
+// comme le rayon qui sert au scoring de distance.
 // ---------------------------------------------------------------------------
 
-export const agence = sqliteTable("agence", {
+export const agence = pgTable("agence", {
   id: text("id").primaryKey(),
   nom: text("nom").notNull(),
-  lat: real("lat").notNull(),
-  lon: real("lon").notNull(),
-  rayonKm: real("rayon_km").notNull(),
-  nafCibles: text("naf_cibles", { mode: "json" }).$type<string[]>(),
-  romeCibles: text("rome_cibles", { mode: "json" }).$type<string[]>(),
+  responsable: text("responsable"),
+  email: text("email"),
+  // Ancrage de la zone : commune choisie à l'inscription (libellé lisible).
+  commune: text("commune"),
+  codePostal: text("code_postal"),
+  departement: text("departement"),
+  lat: doublePrecision("lat").notNull(),
+  lon: doublePrecision("lon").notNull(),
+  rayonKm: doublePrecision("rayon_km").notNull(),
+  nafCibles: jsonb("naf_cibles").$type<string[]>(),
+  romeCibles: jsonb("rome_cibles").$type<string[]>(),
+  /** Divisions ou codes NAF exclus du scoring (null = liste par défaut : 78, 84). */
+  nafExclus: jsonb("naf_exclus").$type<string[]>(),
+  creeLe: text("cree_le"),
 });
 
 // ---------------------------------------------------------------------------
-// Retours CRM — vide en V0, futur dataset supervisé (V2)
+// Retours commerciaux — le futur dataset supervisé. Chaque changement de
+// statut d'un lead y laisse une ligne avec le score et les signaux du moment.
 // ---------------------------------------------------------------------------
 
-export const crmOutcome = sqliteTable("crm_outcome", {
+export const crmOutcome = pgTable("crm_outcome", {
   id: text("id").primaryKey(),
   siret: text("siret").notNull(),
-  evenement: text("evenement").notNull(), // rdv_obtenu, mission_signee, refus, impaye...
+  evenement: text("evenement").notNull(), // contacte, qualifie, perdu, gagne, rdv_obtenu, mission_signee, refus, impaye...
   date: text("date").notNull(),
-  montant: real("montant"),
+  montant: doublePrecision("montant"),
+  motif: text("motif"),
+  scoreFinal: doublePrecision("score_final"),
+  strate: doublePrecision("strate"),
+  sismo: doublePrecision("sismo"),
+  tempo: doublePrecision("tempo"),
+  topTypes: jsonb("top_types").$type<string[]>(),
 });
 
 // ---------------------------------------------------------------------------
@@ -228,12 +340,12 @@ export const crmOutcome = sqliteTable("crm_outcome", {
 
 export type IngestionError = { message: string; ref?: string };
 
-export const ingestionRun = sqliteTable("ingestion_run", {
+export const ingestionRun = pgTable("ingestion_run", {
   id: text("id").primaryKey(),
   source: text("source").notNull(),
   startedAt: text("started_at").notNull(),
   finishedAt: text("finished_at"),
   recordsIn: integer("records_in").notNull().default(0),
   recordsOut: integer("records_out").notNull().default(0),
-  errors: text("errors", { mode: "json" }).$type<IngestionError[]>(),
+  errors: jsonb("errors").$type<IngestionError[]>(),
 });

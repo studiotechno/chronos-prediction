@@ -1,125 +1,277 @@
 /**
- * Pont base ↔ moteur : charge les entrées depuis SQLite, exécute le moteur pur,
- * et (optionnellement) persiste scores et leads. Utilisé par `npm run score`
- * et par l'API de recalcul en direct de /reglages.
+ * Pont base ↔ moteur : charge les entrées depuis PostgreSQL, exécute le moteur
+ * pur, et (optionnellement) persiste scores, leads et le snapshot du jour.
+ * Utilisé par `npm run score` et par l'API de recalcul en direct de /reglages.
  */
-import { isNotNull } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { inArray } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
+import { chunk } from "../db/chunk";
 import { tauxRecoursInterim } from "../reference/dares";
+import { tauxRecoursIdcc } from "../reference/idcc";
+import { facteurSaison } from "../reference/saison";
+import { lectureBmo } from "../reference/bmo";
 import { defaultWeightMap } from "./weights-defaults";
 import { computeAll, type EngineInput, type EngineOutput } from "./engine";
+import type { LectureSecteur } from "./strate";
 import type { SignalScoringInput, WeightMap } from "./types";
 
-export function loadWeights(db: BetterSQLite3Database<typeof schema>): WeightMap {
-  const rows = db.select().from(schema.weights).all();
+type Db = PostgresJsDatabase<typeof schema>;
+
+/** Exclusions par défaut : les agences d'intérim elles-mêmes et l'administration publique. */
+export const NAF_EXCLUS_DEFAUT = ["78", "84"];
+
+export async function loadWeights(db: Db): Promise<WeightMap> {
+  const rows = await db.select().from(schema.weights);
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
-export function loadEngineInput(
-  db: BetterSQLite3Database<typeof schema>,
+/** Taux de recours du secteur : la convention collective d'abord, la division NAF sinon. */
+export function lireSecteur(naf: string, idcc: string[]): LectureSecteur {
+  const parIdcc = tauxRecoursIdcc(idcc);
+  if (parIdcc) {
+    if (parIdcc.niveauSource === "exclu") {
+      return { tauxPct: 0, detailFr: `Convention ${parIdcc.idcc} — ${parIdcc.libelle} : hors cible`, exclu: true };
+    }
+    return {
+      tauxPct: parIdcc.tauxPct,
+      detailFr: `Recours à l'intérim ${parIdcc.tauxPct.toLocaleString("fr-FR")} % — convention ${parIdcc.idcc}, ${parIdcc.libelle}`,
+    };
+  }
+  const taux = tauxRecoursInterim(naf);
+  return {
+    tauxPct: taux,
+    detailFr: `Recours à l'intérim ${taux.toLocaleString("fr-FR")} % — division NAF ${naf.slice(0, 2)}`,
+    exclu: naf.replace(/[^0-9]/g, "").startsWith("78"),
+  };
+}
+
+export async function loadEngineInput(
+  db: Db,
   weightsOverride?: Partial<WeightMap>,
-): EngineInput {
+): Promise<EngineInput> {
   // Les défauts du code couvrent un poids introduit après le dernier seed
-  const weights: WeightMap = { ...defaultWeightMap(), ...loadWeights(db) };
+  const weights: WeightMap = { ...defaultWeightMap(), ...(await loadWeights(db)) };
   if (weightsOverride) {
     for (const [k, v] of Object.entries(weightsOverride)) {
       if (typeof v === "number" && Number.isFinite(v)) weights[k] = v;
     }
   }
 
-  const agenceRow = db.select().from(schema.agence).limit(1).all()[0];
+  const [agenceRows, etabs, entreprises, signauxRows] = await Promise.all([
+    db.select().from(schema.agence).limit(1),
+    db.select().from(schema.etablissement),
+    db.select().from(schema.entreprise),
+    // Tous les signaux, y compris ceux de bassin (MISSION_CONCURRENT, AO_OUVERT) :
+    // ils n'ont ni SIRET ni SIREN et ne scorent personne, mais ils décrivent le
+    // marché local et nourrissent Tempo.
+    db.select().from(schema.signal),
+  ]);
+
+  const agenceRow = agenceRows[0];
   if (!agenceRow) {
-    throw new Error("Aucune agence configurée — lancez `npm run db:seed`.");
+    throw new Error(
+      "Aucune agence configurée — inscrivez-la dans l'application (/inscription), " +
+        "ou posez l'agence de démo avec `npm run db:seed`.",
+    );
   }
 
-  const etabs = db.select().from(schema.etablissement).all();
+  const entrepriseParSiren = new Map(entreprises.map((e) => [e.siren, e]));
   const parSiren = new Map<string, number>();
+  const siegeParSiren = new Map<string, string>();
   for (const e of etabs) {
     if (e.etatAdministratif === "A") parSiren.set(e.siren, (parSiren.get(e.siren) ?? 0) + 1);
+    if (e.estSiege === 1 || !siegeParSiren.has(e.siren)) siegeParSiren.set(e.siren, e.siret);
   }
 
-  const signauxRows = db.select().from(schema.signal).where(isNotNull(schema.signal.siret)).all();
   const signauxParSiret = new Map<string, SignalScoringInput[]>();
+  const missionsBassin: { rome: string | null; occurredAt: string }[] = [];
+  const aoOuverts: { romes: string[]; dateLimite: string | null }[] = [];
   for (const s of signauxRows) {
-    if (!s.siret) continue;
-    const liste = signauxParSiret.get(s.siret) ?? [];
+    if (s.type === "MISSION_CONCURRENT") {
+      missionsBassin.push({
+        rome: typeof s.payload?.rome === "string" ? (s.payload.rome as string) : null,
+        occurredAt: s.occurredAt,
+      });
+      continue;
+    }
+    if (s.type === "AO_OUVERT") {
+      aoOuverts.push({
+        romes: s.romes ?? [],
+        dateLimite: typeof s.payload?.dateLimite === "string" ? (s.payload.dateLimite as string) : null,
+      });
+      continue;
+    }
+    // Un signal au SIREN seul (BODACC, accords) se rattache au siège s'il est
+    // désormais dans le référentiel — sans attendre une ré-ingestion.
+    const siret = s.siret ?? (s.siren ? siegeParSiren.get(s.siren) ?? null : null);
+    if (!siret) continue;
+    const liste = signauxParSiret.get(siret) ?? [];
     liste.push({
       id: s.id,
       type: s.type,
       occurredAt: s.occurredAt,
       confidence: s.confidence,
       payload: s.payload ?? null,
+      lieu: s.lieu ?? null,
+      romes: s.romes ?? null,
     });
-    signauxParSiret.set(s.siret, liste);
+    signauxParSiret.set(siret, liste);
   }
 
   return {
-    etablissements: etabs.map((e) => ({
-      siret: e.siret,
-      siren: e.siren,
-      denomination: e.denomination,
-      naf: e.naf,
-      effectifEstime: e.effectifEstime,
-      lat: e.lat,
-      lon: e.lon,
-      dateCreation: e.dateCreation,
-      etatAdministratif: e.etatAdministratif,
-      nbEtabsBassin: parSiren.get(e.siren) ?? 1,
-    })),
+    etablissements: etabs.map((e) => {
+      const ent = entrepriseParSiren.get(e.siren);
+      return {
+        siret: e.siret,
+        siren: e.siren,
+        denomination: e.denomination,
+        naf: e.naf,
+        idcc: e.idcc && e.idcc.length > 0 ? e.idcc : (ent?.idcc ?? []),
+        trancheEffectif: e.trancheEffectif,
+        trancheEffectifSource: e.trancheEffectifSource,
+        effectifEstime: e.effectifEstime,
+        caractereEmployeur: e.caractereEmployeur ?? ent?.caractereEmployeur ?? null,
+        lat: e.lat,
+        lon: e.lon,
+        codeInsee: e.codeInsee,
+        commune: e.commune,
+        dateCreation: e.dateCreation,
+        etatAdministratif: e.etatAdministratif,
+        nbEtabsBassin: parSiren.get(e.siren) ?? 1,
+        ca: ent?.ca ?? null,
+        caPrecedent: ent?.caPrecedent ?? null,
+        resultatNet: ent?.resultatNet ?? null,
+        icpe: e.icpe === 1,
+        lbbScore: e.lbbScore ?? null,
+      };
+    }),
     signauxParSiret,
+    missionsBassin,
+    aoOuverts,
     agence: {
       lat: agenceRow.lat,
       lon: agenceRow.lon,
       rayonKm: agenceRow.rayonKm,
       romeCibles: agenceRow.romeCibles ?? [],
+      nafExclus: agenceRow.nafExclus ?? NAF_EXCLUS_DEFAUT,
+      departement: agenceRow.departement ?? agenceRow.codePostal?.slice(0, 2) ?? null,
     },
     weights,
-    tauxRecours: tauxRecoursInterim,
+    tauxRecours: lireSecteur,
+    facteurSaison,
+    bmo: (dept, romes) => lectureBmo(dept, romes),
     now: new Date(),
   };
 }
 
-export function runScoring(
-  db: BetterSQLite3Database<typeof schema>,
+export async function runScoring(
+  db: Db,
   opts: { persist: boolean; weightsOverride?: Partial<WeightMap> } = { persist: true },
-): EngineOutput {
-  const input = loadEngineInput(db, opts.weightsOverride);
+): Promise<EngineOutput> {
+  const input = await loadEngineInput(db, opts.weightsOverride);
   const output = computeAll(input);
 
   if (opts.persist) {
     const computedAt = input.now.toISOString();
+    const jour = computedAt.slice(0, 10);
     // Statuts commerciaux existants à préserver au recalcul
-    const statuts = new Map(db.select().from(schema.lead).all().map((l) => [l.siret, l.statut]));
+    const statuts = new Map((await db.select().from(schema.lead)).map((l) => [l.siret, l.statut]));
 
-    db.transaction((tx) => {
-      tx.delete(schema.scoreStrate).run();
-      tx.delete(schema.scoreSismo).run();
-      tx.delete(schema.lead).run();
-      for (const [siret, r] of output.strates) {
-        tx.insert(schema.scoreStrate)
-          .values({ siret, score: r.score, components: r.components, computedAt })
-          .run();
+    // Dernière barrière avant la base : un score non fini ne doit jamais être
+    // persisté. Il survivrait aux redémarrages, contaminerait tous les écrans qui
+    // le lisent, et ne serait rattrapé que par un recalcul. Le compter et le dire
+    // vaut mieux que l'écrire en silence — c'est le symptôme d'un champ de source
+    // que le parsing laisse passer.
+    const nonFinis: string[] = [];
+    const assainir = (siret: string, score: number): number => {
+      if (Number.isFinite(score)) return score;
+      nonFinis.push(siret);
+      return 0;
+    };
+
+    const strates = [...output.strates].map(([siret, r]) => ({
+      siret,
+      score: assainir(siret, r.score),
+      components: r.components,
+      computedAt,
+    }));
+    const sismos = [...output.sismos].map(([siret, r]) => ({
+      siret,
+      score: assainir(siret, r.score),
+      components: r.components,
+      computedAt,
+    }));
+    const tempos = [...output.tempos].map(([siret, r]) => ({
+      siret,
+      score: assainir(siret, r.score),
+      components: r.components,
+      computedAt,
+    }));
+    const leads = output.leads.map((lead) => ({
+      siret: lead.siret,
+      scoreFinal: assainir(lead.siret, lead.scoreFinal),
+      strate: assainir(lead.siret, lead.strate),
+      sismo: assainir(lead.siret, lead.sismo),
+      tempo: assainir(lead.siret, lead.tempo),
+      statut: statuts.get(lead.siret) ?? "nouveau",
+      segment: lead.segment,
+      raisonFr: lead.raisonFr,
+      propositionFr: lead.propositionFr,
+      topSignals: lead.topSignals,
+      fenetreDebut: lead.fenetre?.debut ?? null,
+      fenetreFin: lead.fenetre?.fin ?? null,
+      lieuBesoinFr: lead.lieuBesoinFr,
+      distanceBesoinKm: lead.distanceBesoinKm,
+      romesInduits: lead.romesInduits,
+      computedAt,
+    }));
+    const snapshots = leads.map((l) => ({
+      jour,
+      siret: l.siret,
+      strate: l.strate,
+      sismo: l.sismo,
+      tempo: l.tempo,
+      scoreFinal: l.scoreFinal,
+      segment: l.segment,
+      topTypes: [...new Set(l.topSignals.map((s) => s.type))].slice(0, 5),
+    }));
+
+    if (nonFinis.length > 0) {
+      const distincts = [...new Set(nonFinis)];
+      console.warn(
+        `[score] ${distincts.length} établissement(s) au score non fini, ramené à 0 : ` +
+          `${distincts.slice(0, 5).join(", ")}${distincts.length > 5 ? "…" : ""}. ` +
+          "Cause probable : un champ numérique manquant ou non numérique chez la source.",
+      );
+    }
+
+    // Insertions par paquets : un aller-retour réseau par ligne rendrait le
+    // recalcul inutilisable sur une base distante.
+    await db.transaction(async (tx) => {
+      await tx.delete(schema.scoreStrate);
+      await tx.delete(schema.scoreSismo);
+      await tx.delete(schema.scoreTempo);
+      await tx.delete(schema.lead);
+      for (const paquet of chunk(strates)) await tx.insert(schema.scoreStrate).values(paquet);
+      for (const paquet of chunk(sismos)) await tx.insert(schema.scoreSismo).values(paquet);
+      for (const paquet of chunk(tempos)) await tx.insert(schema.scoreTempo).values(paquet);
+      for (const paquet of chunk(leads)) await tx.insert(schema.lead).values(paquet);
+      // Le snapshot du jour est réécrit à chaque recalcul : un jour = un état.
+      if (snapshots.length > 0) {
+        for (const paquet of chunk(snapshots)) {
+          await tx
+            .delete(schema.scoreSnapshot)
+            .where(
+              inArray(
+                schema.scoreSnapshot.siret,
+                paquet.map((s) => s.siret),
+              ),
+            );
+        }
       }
-      for (const [siret, r] of output.sismos) {
-        tx.insert(schema.scoreSismo)
-          .values({ siret, score: r.score, components: r.components, computedAt })
-          .run();
-      }
-      for (const lead of output.leads) {
-        tx.insert(schema.lead)
-          .values({
-            siret: lead.siret,
-            scoreFinal: lead.scoreFinal,
-            strate: lead.strate,
-            sismo: lead.sismo,
-            statut: statuts.get(lead.siret) ?? "nouveau",
-            segment: lead.segment,
-            raisonFr: lead.raisonFr,
-            topSignals: lead.topSignals,
-            computedAt,
-          })
-          .run();
+      for (const paquet of chunk(snapshots)) {
+        await tx.insert(schema.scoreSnapshot).values(paquet).onConflictDoNothing();
       }
     });
   }
