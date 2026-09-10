@@ -216,6 +216,67 @@ export function IconLienExterne({ size = 16 }: IconProps) {
   );
 }
 
+/* ── Icônes de nature d'actualité ────────────────────────────────────
+   Une vignette par famille d'événement, dans le fil du bassin. Le trait est
+   le même que celui du shell : ces icônes appartiennent à l'outil, elles ne
+   sont pas rapportées d'une bibliothèque tierce. */
+
+/** Coupe — un marché public remporté. */
+export function IconMarche({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M7.5 4h9v4.2a4.5 4.5 0 0 1-9 0V4Z" />
+      <path d="M7.5 5.6H5a2 2 0 0 0 2.5 3.6M16.5 5.6H19a2 2 0 0 1-2.5 3.6" />
+      <path d="M12 12.7V16M9 20h6l-.6-2.2a1.2 1.2 0 0 0-1.1-.8h-2.6a1.2 1.2 0 0 0-1.1.8Z" />
+    </svg>
+  );
+}
+
+/** Calendrier — une consultation qui ferme à une date. */
+export function IconCalendrier({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="3.6" y="5.4" width="16.8" height="15" rx="2.4" />
+      <path d="M3.6 10h16.8M8.4 3.4v3.6M15.6 3.4v3.6" />
+      <path d="M8 14h2.2" />
+    </svg>
+  );
+}
+
+/** Courbe montante — effectifs ou chiffre d'affaires qui progressent. */
+export function IconTendance({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M3.5 16.5 9 11l3.6 3.6L20.5 6.7" />
+      <path d="M15.6 6.7h4.9v4.9" />
+    </svg>
+  );
+}
+
+/** Billet — un mouvement de capital. (Le cylindre de la base de données est
+    déjà pris par les sources : ici c'est d'argent qu'on parle.) */
+export function IconCapital({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="2.6" y="6" width="18.8" height="12" rx="2.6" />
+      <circle cx="12" cy="12" r="2.9" />
+      <path d="M6 10v4M18 10v4" />
+    </svg>
+  );
+}
+
+/** Bâtiment — permis, locaux, vie de l'établissement. */
+export function IconBatiment({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M4.2 20.4V6.6L12 3.6l7.8 3v13.8" />
+      <path d="M2.8 20.4h18.4" />
+      <path d="M9 10.2h1.6M13.4 10.2H15M9 14.2h1.6M13.4 14.2H15" />
+      <path d="M10.4 20.4v-3.2h3.2v3.2" />
+    </svg>
+  );
+}
+
 export function IconAlerte({ size = 16 }: IconProps) {
   return (
     <svg {...base(size)}>

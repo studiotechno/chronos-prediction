@@ -427,8 +427,12 @@ export type Actualite = {
   siret: string | null;
   denomination: string | null;
   commune: string | null;
-  /** Nom brut du titulaire quand le rapprochement n'a pas abouti (BOAMP). */
-  titulaireBrut: string | null;
+  /** Nom publié par la source quand le signal n'est rattaché à aucun établissement. */
+  nomSource: string | null;
+  /** Ce nom attend un arbitrage dans la file de rapprochement. */
+  enResolution: boolean;
+  /** Contexte propre à la source : le tribunal d'une procédure collective. */
+  tribunal: string | null;
   /** Score du lead existant : le fil renvoie vers la fiche quand il y en a une. */
   scoreFinal: number | null;
   distanceKm: number | null;
@@ -463,7 +467,7 @@ export async function getActualites(jours = ACTUALITES_JOURS): Promise<Actualite
   const db = getDb();
   const depuis = new Date(Date.now() - jours * 86400000).toISOString();
 
-  const [rows, agence] = await Promise.all([
+  const [rows, agence, enAttente] = await Promise.all([
     db
       .select({ signal: schema.signal, etab: schema.etablissement, lead: schema.lead })
       .from(schema.signal)
@@ -472,7 +476,17 @@ export async function getActualites(jours = ACTUALITES_JOURS): Promise<Actualite
       .where(and(inArray(schema.signal.type, TYPES_ACTUALITES), gte(schema.signal.occurredAt, depuis)))
       .orderBy(desc(schema.signal.occurredAt)),
     getAgence(),
+    /* Un nom sans SIRET n'est « à rapprocher » que si la file en tient une
+       entrée : les annonces BODACC, rattachées au SIREN, n'y passent jamais et
+       renvoyer le commercial vers /resolution serait une fausse piste. */
+    db
+      .select({ signalId: schema.resolutionQueue.signalId })
+      .from(schema.resolutionQueue)
+      .where(eq(schema.resolutionQueue.statut, "en_attente")),
   ]);
+  const signauxEnResolution = new Set(
+    enAttente.map((r) => r.signalId).filter((id): id is string => !!id),
+  );
 
   /* Le DECP ne publie pas le nom de l'acheteur, seulement son SIRET. Quand il
      se trouve dans le référentiel (les acheteurs publics du bassin y entrent
@@ -496,6 +510,7 @@ export async function getActualites(jours = ACTUALITES_JOURS): Promise<Actualite
 
   return rows.map(({ signal, etab, lead }) => {
     const p = signal.payload ?? null;
+    const marchePublic = signal.type === "MARCHE_ATTRIBUE" || signal.type === "AO_OUVERT";
     const acheteurBrut = texte(p, "acheteurNom") ?? texte(p, "acheteur");
     const dateLimite = texte(p, "dateLimite");
 
@@ -519,12 +534,21 @@ export async function getActualites(jours = ACTUALITES_JOURS): Promise<Actualite
       montant: nombre(p, "montant"),
       dureeMois: nombre(p, "dureeMois"),
       dateLimite,
-      procedure: texte(p, "procedure"),
+      /* `procedure` ne veut pas dire la même chose partout : la procédure de
+         passation au BOAMP, la nature du jugement au BODACC — laquelle est
+         déjà le résumé de la ligne. On ne garde que la première. */
+      procedure: marchePublic ? texte(p, "procedure") : null,
       urlAvis: texte(p, "urlAvis"),
       siret: signal.siret,
       denomination: etab?.denomination ?? null,
       commune: etab?.commune ?? null,
-      titulaireBrut: etab ? null : texte(p, "titulaire"),
+      /* Le nom publié n'a pas la même clé selon la source : `titulaire` au
+         BOAMP, `denomination` au BODACC, `raisonSociale` pour un accord. */
+      nomSource: etab
+        ? null
+        : (texte(p, "titulaire") ?? texte(p, "denomination") ?? texte(p, "raisonSociale")),
+      enResolution: !etab && signauxEnResolution.has(signal.id),
+      tribunal: texte(p, "tribunal"),
       scoreFinal: lead?.scoreFinal ?? null,
       distanceKm: etab ? distanceEtab(agence, etab) : null,
       metiers: (signal.romes ?? []).map(romeLabel).filter((l, i, tous) => tous.indexOf(l) === i),

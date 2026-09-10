@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { JaugeScore, BarresScore } from "@/components/score";
+import { LectureScore } from "@/components/score";
 import { PucesSignaux } from "@/components/signaux";
 import { useMediaQuery } from "@/lib/client-state";
 import { distanceLisible, etatFenetre, fenetreLisible } from "@/lib/format";
@@ -176,7 +176,6 @@ export function LeadsTable({
                   <tr>
                     <td colSpan={colonnes.length} className="p-0">
                       <div className="pp-seg" data-segment={l.segment}>
-                        <span className="pt" />
                         <b>{l.segment === "chaud" ? "Leads chauds" : "Leads tièdes"}</b>
                         <span className="ex">
                           {l.segment === "chaud"
@@ -190,6 +189,9 @@ export function LeadsTable({
                 <tr
                   className="pp-tr"
                   data-segment={l.segment}
+                  /* Cascade d'arrivée : la liste se remplit sous les yeux
+                     plutôt que d'apparaître d'un bloc. */
+                  style={{ "--i": i } as React.CSSProperties}
                   onClick={ouvrir}
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -235,6 +237,17 @@ export function LeadsTable({
   );
 }
 
+/** Deux lettres tirées de la raison sociale, pour la vignette de ligne. */
+function initiales(nom: string): string {
+  const mots = nom
+    .replace(/[^\p{L}\p{N} ]/gu, " ")
+    .split(/\s+/)
+    .filter((m) => m.length > 1);
+  if (mots.length === 0) return nom.slice(0, 2).toUpperCase();
+  if (mots.length === 1) return mots[0].slice(0, 2).toUpperCase();
+  return (mots[0][0] + mots[1][0]).toUpperCase();
+}
+
 /** Une cellule, choisie par identifiant de colonne. */
 function Cellule({ colonne, lead: l, rang }: { colonne: Colonne; lead: LeadListe; rang: number }): ReactNode {
   switch (colonne.id) {
@@ -243,21 +256,36 @@ function Cellule({ colonne, lead: l, rang }: { colonne: Colonne; lead: LeadListe
     case "nom":
       return (
         <td className="pp-td pp-td-nom">
-          <div className="nm">{l.denomination}</div>
-          <div className="sub">
-            {[l.commune, nafLabel(l.naf), l.effectifEstime ? `≈ ${l.effectifEstime} sal.` : null]
-              .filter(Boolean)
-              .join(" · ")}
+          {/* La vignette d'initiales donne à chaque ligne un visage : on
+              retrouve une entreprise dans la liste avant même de lire son nom,
+              et la teinte redit le segment sans ajouter de filet.
+              La mise en ligne se fait dans un conteneur INTERNE : une cellule
+              de tableau passée en `display: flex` quitte la mise en page du
+              tableau et emporte avec elle l'alignement de toute la rangée. */}
+          <div className="wr">
+            <span className="pp-av" data-segment={l.segment} aria-hidden>
+              {initiales(l.denomination)}
+            </span>
+            <span className="ct">
+              <span className="nm">{l.denomination}</span>
+              <span className="sub">
+                {[l.commune, nafLabel(l.naf), l.effectifEstime ? `≈ ${l.effectifEstime} sal.` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </span>
           </div>
         </td>
       );
     case "score":
       return (
         <td className="pp-td">
-          <div className="flex items-center gap-2.5">
-            <JaugeScore score={l.scoreFinal} segment={l.segment === "chaud" ? "chaud" : "nurturing"} />
-            <BarresScore strate={l.strate} sismo={l.sismo} />
-          </div>
+          <LectureScore
+            score={l.scoreFinal}
+            strate={l.strate}
+            sismo={l.sismo}
+            segment={l.segment === "chaud" ? "chaud" : "nurturing"}
+          />
         </td>
       );
     case "raison": {

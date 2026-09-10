@@ -65,7 +65,6 @@ export function PuceSignal({
       data-intensite={intensiteSignal(type)}
       title={titre ?? signalTypeLabel(type)}
     >
-      <i />
       <span className="lb">{signalTypeLabel(type)}</span>
       {count != null && count > 1 && <b>×{count}</b>}
     </span>

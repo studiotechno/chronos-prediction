@@ -16,6 +16,8 @@ export interface FiltresActualitesUI {
   jours: number;
   /** Types de signaux retenus ; vide = tous. */
   types: string[];
+  /** Distance maximale de l'établissement concerné, en km ; 0 = sans limite. */
+  dmax: number;
 }
 
 export const FILTRES_DEFAUT: FiltresActualitesUI = {
@@ -23,6 +25,7 @@ export const FILTRES_DEFAUT: FiltresActualitesUI = {
   q: "",
   jours: 90,
   types: [],
+  dmax: 0,
 };
 
 export const CLE_FILTRES = "chronos.actualites.filtres";
@@ -74,7 +77,7 @@ export function serialiserFiltres(f: FiltresActualitesUI): string {
 }
 
 export function filtresActifs(f: FiltresActualitesUI): boolean {
-  return f.q.trim() !== "" || f.types.length > 0 || f.jours !== FILTRES_DEFAUT.jours;
+  return f.q.trim() !== "" || f.types.length > 0 || f.dmax > 0 || f.jours !== FILTRES_DEFAUT.jours;
 }
 
 function normalise(s: string): string {
@@ -90,6 +93,10 @@ export function appliquerFiltres(actualites: Actualite[], f: FiltresActualitesUI
 
   return actualites.filter((a) => {
     if (f.types.length > 0 && !f.types.includes(a.type)) return false;
+    /* La distance ne vaut que pour les entrées rapprochées d'un établissement.
+       Un marché public ou un avis dont le titulaire n'est pas identifié n'en a
+       pas : le filtre les laisse passer plutôt que de masquer sans le dire. */
+    if (f.dmax > 0 && a.distanceKm != null && a.distanceKm > f.dmax) return false;
     /* Un appel d'offres se juge sur sa date limite, pas sur sa parution :
        le restreindre à la fenêtre de parution masquerait une consultation
        publiée il y a longtemps mais qui ferme la semaine prochaine. */
@@ -101,7 +108,7 @@ export function appliquerFiltres(actualites: Actualite[], f: FiltresActualitesUI
           a.resume,
           a.acheteur ?? "",
           a.denomination ?? "",
-          a.titulaireBrut ?? "",
+          a.nomSource ?? "",
           a.commune ?? "",
           a.siret ?? "",
           a.metiers.join(" "),

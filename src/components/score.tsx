@@ -1,70 +1,45 @@
 import { cn } from "@/lib/utils";
 
 /* ── Signature visuelle Chronos ──────────────────────────────────────
-   Un lead se lit en un coup d'œil : le score final dans une jauge, et
-   dessous les deux couches qui le produisent — ACIER (Socle, le fit
-   structurel, lent) et AMBRE (Pouls, les déclencheurs datés). Le score
-   final étant multiplicatif, voir les deux barres explique la note :
-   une barre acier pleine et une barre ambre vide, ce n'est pas un lead. */
+   Le relevé de score. Un score final n'est pas une note posée d'en haut,
+   c'est un PRODUIT : ACIER (Socle, le fit structurel, lent) × AMBRE
+   (Pouls, les déclencheurs datés). Un cadran circulaire donne le résultat
+   et escamote l'opération ; le relevé la garde sous les yeux — le chiffre
+   contre le filet de son segment, et dessous les deux couches qui l'ont
+   fabriqué. Socle plein et Pouls vide, ce n'est pas un lead : ça se lit
+   sans un mot. */
 
-export function JaugeScore({
+export function LectureScore({
   score,
-  segment,
-  size = 38,
-}: {
-  score: number;
-  /** Colore la jauge : ambre si un déclencheur a parlé, acier sinon. */
-  segment: "chaud" | "nurturing";
-  size?: number;
-}) {
-  const valeur = Math.round(score);
-  const rayon = (size - 6) / 2;
-  const circ = 2 * Math.PI * rayon;
-  const offset = circ * (1 - Math.min(100, Math.max(0, valeur)) / 100);
-
-  return (
-    <div className="pp-gauge-sm" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`}>
-        <circle className="track" cx={size / 2} cy={size / 2} r={rayon} />
-        <circle
-          className="fill"
-          data-zone={segment === "chaud" ? "sismo" : "strate"}
-          cx={size / 2}
-          cy={size / 2}
-          r={rayon}
-          strokeDasharray={circ}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <span className="num" style={{ fontSize: size >= 56 ? 16 : 12 }}>
-        {valeur}
-      </span>
-    </div>
-  );
-}
-
-/** Les deux couches en barres fines, empilées. */
-export function BarresScore({
   strate,
   sismo,
+  segment,
   className,
 }: {
+  score: number;
   strate: number;
   sismo: number;
+  /** Colore le filet : ambre si un déclencheur a parlé, acier sinon. */
+  segment: "chaud" | "nurturing";
   className?: string;
 }) {
+  const borne = (v: number) => Math.min(100, Math.max(0, v));
+
   return (
-    <div className={cn("pp-bars", className)}>
-      <span className="pp-bar" data-couche="strate" title={`Socle ${Math.round(strate)} / 100`}>
-        <i style={{ width: `${Math.min(100, Math.max(0, strate))}%` }} />
-      </span>
-      <span className="pp-bar" data-couche="sismo" title={`Pouls ${Math.round(sismo)} / 100`}>
-        <i style={{ width: `${Math.min(100, Math.max(0, sismo))}%` }} />
+    <span className={cn("pp-lect", className)} data-segment={segment}>
+      <b className="v">{Math.round(score)}</b>
+      <span className="bars" aria-hidden>
+        <span className="pp-bar" data-couche="strate" title={`Socle ${Math.round(strate)} / 100`}>
+          <i style={{ width: `${borne(strate)}%` }} />
+        </span>
+        <span className="pp-bar" data-couche="sismo" title={`Pouls ${Math.round(sismo)} / 100`}>
+          <i style={{ width: `${borne(sismo)}%` }} />
+        </span>
       </span>
       <span className="sr-only">
         Socle {Math.round(strate)}, Pouls {Math.round(sismo)}
       </span>
-    </div>
+    </span>
   );
 }
 

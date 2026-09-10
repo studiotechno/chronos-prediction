@@ -138,7 +138,7 @@ export function ZoneEditor({
             />
             <p className="oz-aide">
               La distance à l’agence entre dans le score structurel : au-delà du rayon, une
-              entreprise reste visible mais son Strate décroît.
+              entreprise reste visible mais son Socle décroît.
             </p>
           </div>
 
@@ -176,7 +176,7 @@ export function ZoneEditor({
               <b>{rome.length ? `${rome.length} retenus` : "aucun"}</b>
             </span>
             <p className="oz-aide">
-              Une offre sur un métier hors de cette liste compte beaucoup moins dans le Sismo. Sans
+              Une offre sur un métier hors de cette liste compte beaucoup moins dans le Pouls. Sans
               sélection, tous les métiers pèsent pareil.
             </p>
             <div className="oz-chips oz-chips--compact">

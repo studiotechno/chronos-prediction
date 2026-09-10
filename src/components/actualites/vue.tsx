@@ -9,13 +9,20 @@ import {
   DfDropdown,
   DfOption,
   DfPopFooter,
+  DfRange,
   DfSeparator,
 } from "@/components/shell/filters";
 import {
   IconActualites,
+  IconAlerte,
+  IconBatiment,
+  IconCalendrier,
+  IconCapital,
   IconFleche,
   IconLienExterne,
+  IconMarche,
   IconRecherche,
+  IconTendance,
 } from "@/components/shell/icons";
 import { PuceSignal, familleSignal } from "@/components/signaux";
 import { useStoredString } from "@/lib/client-state";
@@ -186,6 +193,33 @@ export function ActualitesVue({ actualites }: { actualites: Actualite[] }) {
               )}
             </DfDropdown>
 
+            <DfDropdown
+              label="Distance"
+              value={filtres.dmax === 0 ? "illimitée" : `≤ ${filtres.dmax} km`}
+              applied={filtres.dmax > 0}
+              width={252}
+            >
+              {() => (
+                <DfRange
+                  value={filtres.dmax}
+                  min={0}
+                  max={150}
+                  step={10}
+                  legend={
+                    filtres.dmax === 0 ? (
+                      <>Tout ce qui a été ingéré sur le bassin</>
+                    ) : (
+                      <>
+                        Établissement à moins de <b>{filtres.dmax} km</b> de l’agence — les avis dont le
+                        titulaire n’est pas identifié restent affichés
+                      </>
+                    )
+                  }
+                  onChange={(v) => setFiltres({ ...filtres, dmax: v })}
+                />
+              )}
+            </DfDropdown>
+
             {actifs && (
               <DfClearAll
                 onClear={() => setFiltres({ ...FILTRES_DEFAUT, cadrage: filtres.cadrage })}
@@ -224,22 +258,25 @@ export function ActualitesVue({ actualites }: { actualites: Actualite[] }) {
 
               return (
                 <section key={r.id}>
-                  <header className="pl-sec">
-                    <span className="pl-eyebrow">{r.eyebrow}</span>
-                    <h2>
-                      {r.titre}
-                      <span className="note">
-                        {liste.length.toLocaleString("fr-FR")} · {r.note}
-                      </span>
-                    </h2>
+                  <header className="ac-sec">
+                    <span className="eb">{r.eyebrow}</span>
+                    <h2>{r.titre}</h2>
+                    <span className="nb">{liste.length.toLocaleString("fr-FR")}</span>
+                    <span className="no">{r.note}</span>
                   </header>
 
                   {liste.length === 0 ? (
                     <p className="ac-vide">Rien sur cette rubrique dans la période retenue.</p>
                   ) : (
-                    <ul className="ac-liste">
-                      {apercu.map((a) => (
-                        <Entree key={a.id} actu={a} rubrique={r.id} />
+                    <ul className="ac-liste chr-cascade">
+                      {apercu.map((a, i) => (
+                        <Entree
+                          key={a.id}
+                          actu={a}
+                          rubrique={r.id}
+                          rang={i}
+                          montrerType={new Set(liste.map((x) => x.type)).size > 1}
+                        />
                       ))}
                     </ul>
                   )}
@@ -264,59 +301,85 @@ export function ActualitesVue({ actualites }: { actualites: Actualite[] }) {
   );
 }
 
-/* ── Une entrée du fil ───────────────────────────────────────────────
-   Même carte pour les trois rubriques, mais l'accroche change : l'objet
-   du marché quand il y en a un, le résumé du signal sinon. L'entreprise
-   concernée reste toujours identifiable, et cliquable dès qu'elle a une
-   fiche. */
-function Entree({ actu, rubrique }: { actu: Actualite; rubrique: RubriqueActualite }) {
-  const restant = actu.dateLimite ? joursRestants(actu.dateLimite) : null;
-  const titre = actu.objet ?? actu.resume;
+/* ── Une ligne du registre ───────────────────────────────────────────
+   Trois colonnes, toujours les mêmes : QUAND à gauche en chiffres, QUOI
+   au milieu, COMBIEN à droite. La date de gauche est celle qui commande
+   la ligne — la clôture pour une consultation, l'événement sinon : c'est
+   la seule qui dise quoi faire aujourd'hui. Le filet de gauche porte la
+   famille du signal : ambre ce qui bouge, acier ce qui installe, rouge ce
+   qui alerte. */
+/** Une icône par nature d'événement : la vignette se lit avant le texte. */
+function IconeNature({ type }: { type: string }) {
+  switch (type) {
+    case "MARCHE_ATTRIBUE":
+      return <IconMarche size={17} />;
+    case "AO_OUVERT":
+      return <IconCalendrier size={17} />;
+    case "BODACC_RISQUE":
+    case "CA_BAISSE":
+    case "ACCORD_RESTRUCTURATION":
+      return <IconAlerte size={17} />;
+    case "EFFECTIF_UP":
+    case "CA_CROISSANCE":
+      return <IconTendance size={17} />;
+    case "BODACC_CAPITAL":
+      return <IconCapital size={17} />;
+    default:
+      return <IconBatiment size={17} />;
+  }
+}
+
+function Entree({
+  actu,
+  rubrique,
+  rang,
+  montrerType,
+}: {
+  actu: Actualite;
+  rubrique: RubriqueActualite;
+  /** Rang dans la liste : décale l'apparition en cascade. */
+  rang: number;
+  /* Une rubrique où toutes les lignes portent la même nature n'a pas besoin
+     de la répéter à chaque ligne : le filet de gauche la dit déjà, et six
+     fois « Marché public attribué » n'apprend rien à personne. */
+  montrerType: boolean;
+}) {
+  const echeance = rubrique === "a_venir" ? actu.dateLimite : null;
+  const restant = echeance ? joursRestants(echeance) : null;
+  const pilote = echeance ?? actu.date;
+  /* Deux formes de ligne, selon ce dont elle parle. Une ligne de commande
+     publique a pour sujet un MARCHÉ : son objet fait le titre, l'entreprise
+     suit. Une ligne de vie d'entreprise a pour sujet l'ENTREPRISE : c'est son
+     nom qui titre, et l'événement devient le descriptif. Titrer les deux de la
+     même façon donnait « Augmentation de capital » six fois d'affilée. */
+  const nomme = actu.denomination ?? actu.nomSource;
 
   return (
-    <li className="ac-item" data-famille={familleSignal(actu.type)}>
-      <div className="ac-hd">
-        <PuceSignal type={actu.type} />
-        {rubrique === "a_venir" && actu.dateLimite && restant != null ? (
-          <span
-            className="ac-limite"
-            data-urgent={restant >= 0 && restant <= 7 ? "" : undefined}
-            data-clos={restant < 0 ? "" : undefined}
-          >
-            {urgenceLisible(actu.dateLimite)} · {dateCourte(actu.dateLimite)}
-          </span>
-        ) : (
-          <span className="ac-date" title={dateCourte(actu.date)}>
-            {dateRelative(actu.date)}
-          </span>
-        )}
-        {actu.montant != null && actu.montant > 0 && (
-          <span className="ac-montant">{montantFr(actu.montant)}</span>
-        )}
-        {actu.demo && <span className="ac-demo">fixture</span>}
-      </div>
+    <li
+      className="ac-row"
+      data-famille={familleSignal(actu.type)}
+      style={{ "--i": rang } as React.CSSProperties}
+    >
+      <span className="ac-tuile" aria-hidden>
+        <IconeNature type={actu.type} />
+      </span>
 
-      <p className="ac-titre">{titre}</p>
+      <div className="ac-body">
+        <p className="ac-titre">
+          {actu.objet ?? (nomme ? <Entreprise actu={actu} /> : actu.resume)}
+        </p>
 
-      <div className="ac-meta">
-        <Entreprise actu={actu} />
-        {actu.acheteur && (
-          <span>
-            Acheteur : <b>{actu.acheteur}</b>
-          </span>
-        )}
-        {actu.dureeMois != null && actu.dureeMois > 0 && <span>{actu.dureeMois} mois</span>}
-        {actu.procedure && <span>{actu.procedure}</span>}
-      </div>
-
-      {(actu.metiers.length > 0 || actu.urlAvis) && (
-        <div className="ac-pied">
-          {actu.metiers.length > 0 && (
-            <span className="ac-metiers">
-              À placer : {actu.metiers.slice(0, 4).join(", ")}
-              {actu.metiers.length > 4 && ` +${actu.metiers.length - 4}`}
+        <div className="ac-meta">
+          {montrerType && <PuceSignal type={actu.type} />}
+          {actu.objet ? <Entreprise actu={actu} /> : <span>{actu.resume}</span>}
+          {actu.acheteur && (
+            <span>
+              Acheteur : <b>{actu.acheteur}</b>
             </span>
           )}
+          {actu.dureeMois != null && actu.dureeMois > 0 && <span>{actu.dureeMois} mois</span>}
+          {actu.procedure && <span>{actu.procedure}</span>}
+          {actu.tribunal && <span>{actu.tribunal}</span>}
           {actu.urlAvis && (
             <a className="ac-lien" href={actu.urlAvis} target="_blank" rel="noreferrer noopener">
               <IconLienExterne size={12} />
@@ -324,7 +387,39 @@ function Entree({ actu, rubrique }: { actu: Actualite; rubrique: RubriqueActuali
             </a>
           )}
         </div>
-      )}
+
+        {actu.metiers.length > 0 && (
+          <div className="ac-metiers">
+            <span className="lb">À placer</span>
+            {actu.metiers.slice(0, 4).map((m) => (
+              <span className="mt" key={m}>
+                {m}
+              </span>
+            ))}
+            {actu.metiers.length > 4 && <span className="pl">+{actu.metiers.length - 4}</span>}
+          </div>
+        )}
+      </div>
+
+      <div className="ac-side">
+        {actu.montant != null && actu.montant > 0 && (
+          <span className="ac-montant">{montantFr(actu.montant)}</span>
+        )}
+        {echeance && restant != null ? (
+          <span
+            className="ac-echeance"
+            data-urgent={restant >= 0 && restant <= 7 ? "" : undefined}
+            data-clos={restant < 0 ? "" : undefined}
+          >
+            {urgenceLisible(echeance)}
+          </span>
+        ) : null}
+        <span className="ac-quand">
+          <b>{dateCourte(pilote)}</b>
+          {!echeance && <em>{dateRelative(actu.date)}</em>}
+        </span>
+        {actu.demo && <span className="ac-demo">fixture</span>}
+      </div>
     </li>
   );
 }
@@ -342,13 +437,15 @@ function Entreprise({ actu }: { actu: Actualite }) {
     );
   }
 
-  if (actu.titulaireBrut) {
+  if (actu.nomSource) {
     return (
       <span className="ac-etab" data-brut="">
-        <b>{actu.titulaireBrut}</b>
-        <Link className="cm" href="/resolution">
-          non rapproché
-        </Link>
+        <b>{actu.nomSource}</b>
+        {actu.enResolution && (
+          <Link className="cm" href="/resolution">
+            à rapprocher
+          </Link>
+        )}
       </span>
     );
   }
