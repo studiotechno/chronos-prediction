@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   caviarder,
+  decouperFenetres,
   communeDepuisLibelle,
   dureeContratJours,
   estAgenceInterim,
@@ -89,6 +90,32 @@ describe("détection d'une agence d'intérim", () => {
   it("rattrape les enseignes connues en dernier recours", () => {
     expect(estAgenceInterim(null, "CDD", "ADECCO BTP VICHY")).toBe(true);
     expect(estAgenceInterim(null, "CDD", "BOULANGERIE MARTIN")).toBe(false);
+  });
+
+  it("reconnaît un intermédiaire de l'emploi à ses mots, sans attraper les employeurs", () => {
+    // Annonceurs réels vus sans NAF dans l'Allier (10/09/2026)
+    expect(estAgenceInterim(null, "CDI", "Vichy Interim et Placement")).toBe(true);
+    expect(estAgenceInterim(null, "CDI", "Instan 03 Allier")).toBe(true);
+    expect(estAgenceInterim(null, "CDD", "KALI RH")).toBe(true);
+    expect(estAgenceInterim(null, "CDI", "LE MERCATO DE L EMPLOI")).toBe(true);
+    expect(estAgenceInterim(null, "CDI", "Cabinet RH Durand")).toBe(true);
+    expect(estAgenceInterim(null, "CDI", "TRANSPORTS RHONE ALPES")).toBe(false);
+    expect(estAgenceInterim(null, "CDI", "CENTRE HOSPITALIER DE MOULINS")).toBe(false);
+    expect(estAgenceInterim(null, "CDI", "MACONNERIE INTERIMAIRE DU BOURBONNAIS")).toBe(false);
+  });
+});
+
+describe("fenêtres de lecture", () => {
+  it("découpe la profondeur en fenêtres d'au plus 30 jours, jointives", () => {
+    const jusqua = new Date("2026-09-10T10:00:00Z");
+    const depuis = new Date(jusqua.getTime() - 90 * 86400000);
+    const f = decouperFenetres(depuis, jusqua);
+    expect(f).toHaveLength(3);
+    expect(f[0][0].toISOString()).toBe(depuis.toISOString());
+    expect(f[2][1].toISOString()).toBe(jusqua.toISOString());
+    for (let i = 1; i < f.length; i++) expect(f[i][0].getTime()).toBe(f[i - 1][1].getTime());
+    expect(decouperFenetres(depuis, jusqua, 45)).toHaveLength(2);
+    expect(decouperFenetres(jusqua, depuis)).toHaveLength(0);
   });
 });
 

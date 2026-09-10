@@ -10,7 +10,7 @@
  * Un signal qui arrive sans SIRET mais avec une raison sociale (titulaire BOAMP)
  * passe par le rapprocheur partagé ; ambigu, il va en file de résolution.
  */
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import crypto from "node:crypto";
 import * as schema from "../db/schema";
@@ -29,6 +29,120 @@ export type RunStats = {
 
 /** Variation relative de CA à partir de laquelle on dérive un signal. */
 const SEUIL_CA = 0.15;
+/** Ouverture d'établissement : fenêtre d'observation, et ancienneté minimale de l'entreprise. */
+const ETAB_NOUVEAU_JOURS = 180;
+const ETAB_NOUVEAU_ANCIENNETE_JOURS = 365;
+const JOUR_MS = 86400000;
+
+type Finances = {
+  caAnnee: number | null;
+  ca: number | null;
+  caPrecedent: number | null;
+  resultatNet: number | null;
+  resultatNetPrecedent: number | null;
+};
+
+/**
+ * Dérivée CA_CROISSANCE / CA_BAISSE : deux exercices connus, variation ≥ 15 %.
+ * Idempotente par rawRef quelle que soit la source qui apporte les comptes
+ * (SIRENE n'en publie qu'un exercice, les ratios INPI plusieurs).
+ */
+async function deriverCa(
+  db: PostgresJsDatabase<typeof schema>,
+  siren: string,
+  siretSiege: string | null,
+  f: Finances,
+  source: string,
+  nowIso: string,
+): Promise<boolean> {
+  if (f.ca == null || f.caPrecedent == null || !(f.caPrecedent > 0) || f.caAnnee == null) return false;
+  // Des comptes vieux de plus de trois ans ne disent plus rien du présent : un
+  // « CA +34 % (exercice 2020) » n'est pas une raison d'appeler en 2026.
+  if (f.caAnnee < new Date(nowIso).getUTCFullYear() - 3) return false;
+  const delta = (f.ca - f.caPrecedent) / f.caPrecedent;
+  if (Math.abs(delta) < SEUIL_CA) return false;
+  const rawRef = `ca-${siren}-${f.caAnnee}`;
+  const existant = await db.select({ id: schema.signal.id }).from(schema.signal).where(eq(schema.signal.rawRef, rawRef));
+  if (existant.length > 0) return false;
+  const inseres = await db
+    .insert(schema.signal)
+    .values({
+      id: crypto.randomUUID(),
+      siret: siretSiege,
+      siren,
+      type: delta > 0 ? "CA_CROISSANCE" : "CA_BAISSE",
+      source,
+      // Les comptes d'un exercice se déposent au milieu de l'année suivante.
+      occurredAt: `${f.caAnnee + 1}-07-01T00:00:00.000Z`,
+      ingestedAt: nowIso,
+      confidence: 1,
+      payload: {
+        annee: f.caAnnee,
+        ca: f.ca,
+        caPrecedent: f.caPrecedent,
+        deltaPct: Math.round(delta * 1000) / 10,
+      },
+      rawRef,
+    })
+    .onConflictDoNothing()
+    .returning({ id: schema.signal.id });
+  return inseres.length > 0;
+}
+
+/**
+ * Ouverture d'établissement : une entreprise établie depuis plus d'un an démarre
+ * un site sur le bassin. Le recrutement suit l'ouverture — noyau à retard.
+ * Une entreprise qui vient de naître n'est pas une implantation.
+ */
+export function estOuvertureRecente(
+  etab: { dateDebutActivite?: string | null; etatAdministratif: string | null },
+  entreprise: { dateCreation: string | null },
+  now: Date,
+): boolean {
+  if (etab.etatAdministratif !== "A" || !etab.dateDebutActivite || !entreprise.dateCreation) return false;
+  const debut = new Date(etab.dateDebutActivite).getTime();
+  const creation = new Date(entreprise.dateCreation).getTime();
+  if (!Number.isFinite(debut) || !Number.isFinite(creation)) return false;
+  const age = (now.getTime() - debut) / JOUR_MS;
+  if (age < 0 || age > ETAB_NOUVEAU_JOURS) return false;
+  return (debut - creation) / JOUR_MS >= ETAB_NOUVEAU_ANCIENNETE_JOURS;
+}
+
+/**
+ * Fusion des finances au ré-import d'une source qui n'en publie qu'un exercice
+ * (SIRENE) avec celles d'une source qui en publie plusieurs (INPI) : l'exercice le
+ * plus récent gagne, un exercice précédent connu n'est jamais effacé par un null,
+ * et un exercice qui avance d'un an fait glisser l'ancien « dernier » en « précédent ».
+ * Colonnes brutes : ON CONFLICT ne connaît que `excluded` et la table.
+ */
+export function fusionFinancesSql() {
+  const t = sql.raw('"entreprise"');
+  return {
+    caAnnee: sql`CASE WHEN excluded.ca_annee IS NULL THEN ${t}.ca_annee
+      WHEN ${t}.ca_annee IS NULL OR excluded.ca_annee >= ${t}.ca_annee THEN excluded.ca_annee
+      ELSE ${t}.ca_annee END`,
+    ca: sql`CASE WHEN excluded.ca_annee IS NULL THEN ${t}.ca
+      WHEN ${t}.ca_annee IS NULL OR excluded.ca_annee > ${t}.ca_annee THEN excluded.ca
+      WHEN excluded.ca_annee = ${t}.ca_annee THEN coalesce(excluded.ca, ${t}.ca)
+      ELSE ${t}.ca END`,
+    caPrecedent: sql`CASE WHEN excluded.ca_annee IS NULL THEN ${t}.ca_precedent
+      WHEN ${t}.ca_annee IS NULL THEN excluded.ca_precedent
+      WHEN excluded.ca_annee = ${t}.ca_annee + 1 THEN coalesce(excluded.ca_precedent, ${t}.ca)
+      WHEN excluded.ca_annee = ${t}.ca_annee THEN coalesce(excluded.ca_precedent, ${t}.ca_precedent)
+      WHEN excluded.ca_annee > ${t}.ca_annee THEN excluded.ca_precedent
+      ELSE ${t}.ca_precedent END`,
+    resultatNet: sql`CASE WHEN excluded.ca_annee IS NULL THEN ${t}.resultat_net
+      WHEN ${t}.ca_annee IS NULL OR excluded.ca_annee > ${t}.ca_annee THEN excluded.resultat_net
+      WHEN excluded.ca_annee = ${t}.ca_annee THEN coalesce(excluded.resultat_net, ${t}.resultat_net)
+      ELSE ${t}.resultat_net END`,
+    resultatNetPrecedent: sql`CASE WHEN excluded.ca_annee IS NULL THEN ${t}.resultat_net_precedent
+      WHEN ${t}.ca_annee IS NULL THEN excluded.resultat_net_precedent
+      WHEN excluded.ca_annee = ${t}.ca_annee + 1 THEN coalesce(excluded.resultat_net_precedent, ${t}.resultat_net)
+      WHEN excluded.ca_annee = ${t}.ca_annee THEN coalesce(excluded.resultat_net_precedent, ${t}.resultat_net_precedent)
+      WHEN excluded.ca_annee > ${t}.ca_annee THEN excluded.resultat_net_precedent
+      ELSE ${t}.resultat_net_precedent END`,
+  };
+}
 
 export async function runIngestion<TRaw>(
   db: PostgresJsDatabase<typeof schema>,
@@ -110,49 +224,54 @@ async function appliquer(
           etat: entreprise.etat,
           ...(entreprise.caractereEmployeur !== undefined && { caractereEmployeur: entreprise.caractereEmployeur }),
           ...(entreprise.nbEtabsOuverts !== undefined && { nbEtabsOuverts: entreprise.nbEtabsOuverts }),
-          ...(entreprise.caAnnee !== undefined && { caAnnee: entreprise.caAnnee }),
-          ...(entreprise.ca !== undefined && { ca: entreprise.ca }),
-          ...(entreprise.caPrecedent !== undefined && { caPrecedent: entreprise.caPrecedent }),
-          ...(entreprise.resultatNet !== undefined && { resultatNet: entreprise.resultatNet }),
-          ...(entreprise.resultatNetPrecedent !== undefined && {
-            resultatNetPrecedent: entreprise.resultatNetPrecedent,
-          }),
+          ...(entreprise.caAnnee !== undefined && fusionFinancesSql()),
           ...(entreprise.idcc !== undefined && { idcc: entreprise.idcc }),
           ...(entreprise.complements !== undefined && { complements: entreprise.complements }),
         },
       });
 
     // Dérivée CA_CROISSANCE / CA_BAISSE : deux exercices connus (idempotent par rawRef)
-    if (
-      entreprise.ca != null &&
-      entreprise.caPrecedent != null &&
-      entreprise.caPrecedent > 0 &&
-      entreprise.caAnnee != null
-    ) {
-      const delta = (entreprise.ca - entreprise.caPrecedent) / entreprise.caPrecedent;
-      if (Math.abs(delta) >= SEUIL_CA) {
-        await db
-          .insert(schema.signal)
-          .values({
-            id: crypto.randomUUID(),
-            siret: etablissement.estSiege ? etablissement.siret : null,
-            siren: entreprise.siren,
-            type: delta > 0 ? "CA_CROISSANCE" : "CA_BAISSE",
-            source: "sirene",
-            // Les comptes d'un exercice se déposent au milieu de l'année suivante.
-            occurredAt: `${entreprise.caAnnee + 1}-07-01T00:00:00.000Z`,
-            ingestedAt: nowIso,
-            confidence: 1,
-            payload: {
-              annee: entreprise.caAnnee,
-              ca: entreprise.ca,
-              caPrecedent: entreprise.caPrecedent,
-              deltaPct: Math.round(delta * 1000) / 10,
-            },
-            rawRef: `ca-${entreprise.siren}-${entreprise.caAnnee}`,
-          })
-          .onConflictDoNothing();
-      }
+    await deriverCa(
+      db,
+      entreprise.siren,
+      etablissement.estSiege ? etablissement.siret : null,
+      {
+        caAnnee: entreprise.caAnnee ?? null,
+        ca: entreprise.ca ?? null,
+        caPrecedent: entreprise.caPrecedent ?? null,
+        resultatNet: entreprise.resultatNet ?? null,
+        resultatNetPrecedent: entreprise.resultatNetPrecedent ?? null,
+      },
+      "sirene",
+      nowIso,
+    );
+
+    // Dérivée ETAB_NOUVEAU : ouverture récente d'un site par une entreprise établie
+    if (estOuvertureRecente(etablissement, entreprise, new Date(nowIso))) {
+      await db
+        .insert(schema.signal)
+        .values({
+          id: crypto.randomUUID(),
+          siret: etablissement.siret,
+          siren: etablissement.siren,
+          type: "ETAB_NOUVEAU",
+          source: "sirene",
+          occurredAt: `${etablissement.dateDebutActivite!.slice(0, 10)}T00:00:00.000Z`,
+          ingestedAt: nowIso,
+          confidence: 1,
+          payload: {
+            commune: etablissement.commune,
+            naf: etablissement.naf,
+            estSiege: etablissement.estSiege === 1,
+            dateCreationEntreprise: entreprise.dateCreation,
+          },
+          rawRef: `etab-nouveau-${etablissement.siret}`,
+          lieu:
+            etablissement.lat != null && etablissement.lon != null
+              ? { lat: etablissement.lat, lon: etablissement.lon, libelle: etablissement.commune }
+              : null,
+        })
+        .onConflictDoNothing();
     }
 
     const existant = (
@@ -256,13 +375,27 @@ async function appliquer(
     }
 
     const id = crypto.randomUUID();
-    // `returning` est la façon portable de savoir si le conflit a mordu :
-    // PostgreSQL ne renvoie rien quand ON CONFLICT DO NOTHING a joué.
-    const inseres = await db
+    // Un signal déjà en base (même source, même référence) est RAFRAÎCHI : date,
+    // payload, lieu, métiers — un avis BOAMP relu avec son montant et son code
+    // postal ne doit pas rester figé dans sa première version. Le SIRET n'est
+    // jamais effacé : une résolution manuelle survit à une ré-ingestion.
+    // `xmax = 0` distingue l'insertion de la mise à jour.
+    const ecrits = await db
       .insert(schema.signal)
       .values({ id, ingestedAt: nowIso, ...signal })
-      .onConflictDoNothing()
-      .returning({ id: schema.signal.id });
+      .onConflictDoUpdate({
+        target: [schema.signal.source, schema.signal.rawRef],
+        set: {
+          occurredAt: sql`excluded.occurred_at`,
+          payload: sql`excluded.payload`,
+          lieu: sql`excluded.lieu`,
+          romes: sql`excluded.romes`,
+          siret: sql`coalesce(${schema.signal.siret}, excluded.siret)`,
+          siren: sql`coalesce(${schema.signal.siren}, excluded.siren)`,
+        },
+      })
+      .returning({ id: schema.signal.id, nouveau: sql<boolean>`(xmax = 0)` });
+    const inseres = ecrits.filter((e) => e.nouveau);
 
     if (inseres.length > 0 && resolutionEnAttente && rapprochement) {
       await db
@@ -292,6 +425,8 @@ async function appliquer(
           id: schema.offreBrute.id,
           dateActualisation: schema.offreBrute.dateActualisation,
           nbActualisations: schema.offreBrute.nbActualisations,
+          payload: schema.offreBrute.payload,
+          firstSeenAt: schema.offreBrute.firstSeenAt,
         })
         .from(schema.offreBrute)
         .where(eq(schema.offreBrute.id, o.id))
@@ -301,12 +436,18 @@ async function appliquer(
       // une offre importée avant l'ajout d'un champ resterait aveugle pour toujours.
       const reactualisee =
         !!o.dateActualisation && !!existante.dateActualisation && o.dateActualisation > existante.dateActualisation;
+      // France Travail pose le drapeau « manque de candidats » avec retard, après
+      // des semaines sur le marché : le signal se date au jour où on l'a VU
+      // apparaître, pas à la publication (mesuré le 10/09/2026 : 0 offre de
+      // septembre le portait, 92 d'août).
+      const dejaDepuis = (existante.payload as { manqueCandidatsDepuis?: string | null } | null)?.manqueCandidatsDepuis;
+      const manqueCandidatsDepuis = o.manqueCandidats ? (dejaDepuis ?? existante.firstSeenAt ?? nowIso) : null;
       await db
         .update(schema.offreBrute)
         .set({
           lastSeenAt: nowIso,
           closedAt: null,
-          payload: o.payload,
+          payload: { ...o.payload, manqueCandidatsDepuis },
           codeInsee: o.codeInsee ?? null,
           lat: o.lat ?? null,
           lon: o.lon ?? null,
@@ -349,8 +490,36 @@ async function appliquer(
       lastSeenAt: nowIso,
       closedAt: null,
       source: o.source,
-      payload: o.payload,
+      payload: { ...o.payload, manqueCandidatsDepuis: o.manqueCandidats ? nowIso : null },
     });
+    return true;
+  }
+
+  if (record.kind === "finances") {
+    const connue = (
+      await db
+        .select({ siren: schema.entreprise.siren })
+        .from(schema.entreprise)
+        .where(eq(schema.entreprise.siren, record.siren))
+    )[0];
+    if (!connue) return false;
+    const f = record.finances;
+    await db
+      .update(schema.entreprise)
+      .set({
+        caAnnee: f.caAnnee,
+        ca: f.ca,
+        caPrecedent: f.caPrecedent,
+        resultatNet: f.resultatNet,
+        resultatNetPrecedent: f.resultatNetPrecedent,
+      })
+      .where(eq(schema.entreprise.siren, record.siren));
+    const etabs = await db
+      .select({ siret: schema.etablissement.siret, estSiege: schema.etablissement.estSiege })
+      .from(schema.etablissement)
+      .where(eq(schema.etablissement.siren, record.siren));
+    const siege = etabs.find((e) => e.estSiege === 1)?.siret ?? etabs[0]?.siret ?? null;
+    await deriverCa(db, record.siren, siege, f, record.source, nowIso);
     return true;
   }
 

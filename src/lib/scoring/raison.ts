@@ -96,6 +96,17 @@ function clause(type: string, groupe: SignalAvecPayload[]): string | null {
       const dest = str(p, "destination");
       return `a obtenu un permis de construire${dest ? ` (${dest.toLowerCase()})` : ""}${surface > 0 ? ` de ${Math.round(surface).toLocaleString("fr-FR")} m²` : ""} le ${dateFr(s.occurredAt)}`;
     }
+    case "ETAB_NOUVEAU": {
+      const commune = str(p, "commune");
+      return `a ouvert un établissement${commune ? ` à ${commune}` : " sur le bassin"} le ${dateFr(s.occurredAt)}`;
+    }
+    case "AO_RENOUVELLEMENT": {
+      const acheteur = str(p, "acheteurNom");
+      const limite = str(p, "dateLimite");
+      const objet = str(p, "objetPrecedent") || str(p, "objet");
+      const quoi = objet ? ` (${objet.length > 60 ? objet.slice(0, 57) + "…" : objet})` : "";
+      return `voit son marché${acheteur ? ` avec ${acheteur}` : ""} remis en concurrence${limite ? `, offres attendues le ${dateFr(limite)}` : ""}${quoi}`;
+    }
     default:
       return null;
   }
@@ -149,6 +160,12 @@ export function resumeSignal(s: SignalScoringInput): string {
       return `Permis ${str(p, "destination") || "de locaux"}${num(p, "surface") > 0 ? ` · ${Math.round(num(p, "surface"))} m²` : ""}`;
     case "MISSION_CONCURRENT":
       return `${str(p, "agenceInterim")} : ${metier(str(p, "intitule"))} à ${str(p, "commune")}`;
+    case "DEMANDE_ANONYME":
+      return `Employeur non nommé : ${metier(str(p, "intitule"))} à ${str(p, "commune")}`;
+    case "ETAB_NOUVEAU":
+      return `Ouverture${str(p, "commune") ? ` à ${str(p, "commune")}` : ""} (${str(p, "naf") || "établissement"})`;
+    case "AO_RENOUVELLEMENT":
+      return `Remis en concurrence — ${str(p, "acheteurNom")}${str(p, "dateLimite") ? ` · offres le ${dateFr(str(p, "dateLimite"))}` : ""}`;
     default:
       return s.type;
   }
@@ -188,8 +205,11 @@ export function buildProposition(opts: {
   now: Date;
   /** Libellés métier publiés par la source, par code ROME. Priment sur le dictionnaire local. */
   libelles?: Map<string, string>;
+  /** Faux quand le besoin est réel mais hors des secteurs et métiers de l'agence. */
+  servable?: boolean;
 }): string | null {
   const morceaux: string[] = [];
+  if (opts.servable === false) morceaux.push("Hors secteurs et métiers de l'agence");
   // Un code ROME brut n'est pas un métier : « proposer : i1613 » ne se dit pas au
   // téléphone. On prend le libellé de la source, sinon celui du dictionnaire, et
   // à défaut on se tait sur ce métier-là plutôt que d'afficher un code.
@@ -224,6 +244,7 @@ export function buildRaison(
     fenetre?: { debut: string; fin: string } | null;
     lieuFr?: string | null;
     distanceKm?: number | null;
+    servable?: boolean;
     now?: Date;
   },
 ): RaisonResult {
@@ -303,6 +324,7 @@ export function buildRaison(
     distanceKm: opts.distanceKm ?? null,
     now: opts.now ?? new Date(),
     libelles,
+    servable: opts.servable,
   });
 
   return { raisonFr: raison, propositionFr, topSignals };

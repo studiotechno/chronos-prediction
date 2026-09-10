@@ -6,7 +6,7 @@ import type { EtabScoringInput } from "../types";
 const NOW = new Date("2026-08-27T12:00:00Z");
 const w = defaultWeightMap();
 
-const AGENCE = { lat: 43.3026, lon: 5.3691, rayonKm: 30, romeCibles: [], nafExclus: [] };
+const AGENCE = { lat: 43.3026, lon: 5.3691, rayonKm: 30, romeCibles: [], nafCibles: [], nafExclus: [] };
 
 function etab(partial: Partial<EtabScoringInput>): EtabScoringInput {
   return {

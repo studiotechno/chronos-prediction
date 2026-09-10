@@ -77,7 +77,8 @@ describe("ACCO — normalisation", () => {
     expect(r.signal.type).toBe("ACCORD_SURCHARGE");
     expect(r.signal.siret).toBe("90090000100019");
     expect(r.signal.siren).toBe("900900001");
-    expect(r.signal.occurredAt).toBe(`${surcharge.dateEffet}T00:00:00.000Z`);
+    expect(r.signal.occurredAt).toBe(`${surcharge.dateTexte ?? surcharge.dateDiffusion}T00:00:00.000Z`);
+    expect(r.signal.payload.dateEffet).toBe(surcharge.dateEffet);
     expect(r.signal.payload.themes).toEqual(["052", "059"]);
     expect(r.signal.payload.themesFr).toBe("heures supplémentaires, aménagement du temps de travail (modulation, annualisation)");
     expect(r.signal.rawRef).toBe("acco-T00326000001");

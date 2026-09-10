@@ -10,6 +10,8 @@ export type FetchParams = {
   departement?: string;
   /** SIRET / SIREN déjà connus du référentiel — pour les sources nationales qu'on filtre localement (ACCO, LBB). */
   sirets?: string[];
+  /** SIREN à interroger nommément (ratios INPI). */
+  sirens?: string[];
   /** Métiers ROME cibles de l'agence (La Bonne Boîte interroge par ROME). */
   romes?: string[];
 };
@@ -131,7 +133,24 @@ export type AttributRecord = {
   };
 };
 
-export type NormalizedRecord = EtablissementRecord | SignalRecord | OffreRecord | AttributRecord;
+/**
+ * Finances d'une unité légale apportées par une source comptable (ratios INPI) :
+ * met à jour l'entreprise si elle est connue, et dérive CA_CROISSANCE / CA_BAISSE.
+ */
+export type FinancesRecord = {
+  kind: "finances";
+  siren: string;
+  source: string;
+  finances: {
+    caAnnee: number | null;
+    ca: number | null;
+    caPrecedent: number | null;
+    resultatNet: number | null;
+    resultatNetPrecedent: number | null;
+  };
+};
+
+export type NormalizedRecord = EtablissementRecord | SignalRecord | OffreRecord | AttributRecord | FinancesRecord;
 
 export interface SourceAdapter<TRaw> {
   id: string;

@@ -5,7 +5,6 @@ import type { SignalScoringInput } from "../types";
 
 const NOW = new Date("2026-08-27T12:00:00Z");
 const w = defaultWeightMap();
-const ROME_CIBLES = ["N1101", "F1703"];
 
 function signal(partial: Partial<SignalScoringInput> & { type: string }): SignalScoringInput {
   return {
@@ -19,8 +18,9 @@ function signal(partial: Partial<SignalScoringInput> & { type: string }): Signal
   };
 }
 
+/** Par défaut le bassin n'a rien mesuré : le secteur (8 %, plein) fait foi. */
 function ctx(partial: Partial<Parameters<typeof computeSismo>[1]> = {}) {
-  return { weights: w, romeCibles: ROME_CIBLES, tauxSecteurPct: 8, now: NOW, ...partial };
+  return { weights: w, interimabilite: () => null, tauxSecteurPct: 8, now: NOW, ...partial };
 }
 
 function joursAvant(n: number): string {
@@ -118,17 +118,38 @@ describe("normalisation logistique", () => {
 });
 
 describe("facteurs métier et secteur", () => {
-  it("une offre hors ROME cibles est fortement amortie", () => {
-    const dans = computeSismo([signal({ type: "OFFRE_DIRECTE", payload: { rome: "F1703" } })], ctx());
-    const hors = computeSismo([signal({ type: "OFFRE_DIRECTE", payload: { rome: "M1402" } })], ctx());
-    expect(hors.contributions[0].contribution).toBeCloseTo(
-      dans.contributions[0].contribution * w["sismo.rome_hors_cible"],
-      2,
+  const offre = (rome: string) => [signal({ type: "OFFRE_DIRECTE", payload: { rome } })];
+
+  it("l'intérimabilité mesurée du métier multiplie l'offre : pleine à la part de référence, réduite en dessous", () => {
+    const ref = w["sismo.interimabilite.ref"];
+    const mesure = (parts: Record<string, number>) => ctx({ interimabilite: (romes) => parts[romes[0]] ?? null });
+    const cariste = computeSismo(offre("N1101"), mesure({ N1101: 0.84 }));
+    const serveur = computeSismo(offre("G1803"), mesure({ G1803: ref * 0.5 }));
+    const psychologue = computeSismo(offre("K1104"), mesure({ K1104: 0 }));
+    expect(cariste.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"], 1);
+    expect(serveur.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"] * 0.5, 1);
+    // jamais sous le plancher : un métier jamais vu en intérim n'annule pas l'offre
+    expect(psychologue.contributions[0].contribution).toBeCloseTo(
+      w["sismo.poids.OFFRE_DIRECTE"] * w["sismo.secteur.plancher"],
+      1,
     );
   });
 
+  it("sans mesure sur le bassin, le secteur prend le relais — jamais les deux à la fois", () => {
+    const secteurFort = computeSismo(offre("M1402"), ctx({ interimabilite: () => null, tauxSecteurPct: 8 }));
+    const secteurFaible = computeSismo(offre("M1402"), ctx({ interimabilite: () => null, tauxSecteurPct: 2 }));
+    expect(secteurFort.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"], 1);
+    expect(secteurFaible.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"] * 0.25, 1);
+    // le métier mesuré ignore le secteur : un cariste chez un négociant reste un cariste
+    const mesureChezNegociant = computeSismo(offre("N1101"), ctx({ interimabilite: () => 0.84, tauxSecteurPct: 2 }));
+    expect(mesureChezNegociant.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"], 1);
+  });
+
   it("les métiers induits (romes) priment sur le payload", () => {
-    const r = computeSismo([signal({ type: "OFFRE_DIRECTE", romes: ["F1703"], payload: { rome: "M1402" } })], ctx());
+    const r = computeSismo(
+      [signal({ type: "OFFRE_DIRECTE", romes: ["F1703"], payload: { rome: "M1402" } })],
+      ctx({ interimabilite: (romes) => (romes[0] === "F1703" ? 0.9 : 0) }),
+    );
     expect(r.contributions[0].contribution).toBeCloseTo(w["sismo.poids.OFFRE_DIRECTE"], 1);
     expect(r.romesInduits).toEqual(["F1703"]);
   });
@@ -346,5 +367,37 @@ describe("dédoublonnage des marchés (BOAMP puis DECP)", () => {
       ctx(),
     );
     expect(r.contributions.filter((c) => c.contribution > 0)).toHaveLength(2);
+  });
+});
+
+describe("déclencheurs qualifiants et récurrence", () => {
+  it("une augmentation de capital seule ne qualifie pas un lead, une offre si", () => {
+    const capital = computeSismo([signal({ type: "BODACC_CAPITAL", payload: {} })], ctx());
+    expect(capital.score).toBeGreaterThan(0);
+    expect(capital.aDeclencheurQualifiant).toBe(false);
+    const offre = computeSismo([signal({ type: "OFFRE_DIRECTE", payload: { rome: "F1703" } })], ctx());
+    expect(offre.aDeclencheurQualifiant).toBe(true);
+  });
+
+  it("deux déclencheurs en trente jours valent plus que deux à six mois d'écart, sans dépasser le plafond de famille", () => {
+    const manque = (id: string, jours: number) =>
+      signal({ id, type: "OFFRE_MANQUE_CANDIDATS", occurredAt: joursAvant(jours), payload: { rome: "F1703" } });
+    const groupes = computeSismo([manque("a", 2), manque("b", 9)], ctx());
+    // Même contributions individuelles, mais une des deux est trop vieille pour la fenêtre
+    const w2 = { ...w, [`sismo.demivie.OFFRE_MANQUE_CANDIDATS`]: 100000 };
+    const espaces = computeSismo([manque("a", 2), manque("b", 200)], ctx({ weights: w2 }));
+    const groupesMemePoids = computeSismo([manque("a", 2), manque("b", 9)], ctx({ weights: w2 }));
+    expect(groupesMemePoids.sommeBrute).toBeGreaterThan(espaces.sommeBrute);
+    expect(groupes.components.some((c) => c.key === "recurrence")).toBe(true);
+    expect(espaces.components.some((c) => c.key === "recurrence")).toBe(false);
+    expect(groupesMemePoids.sommeBrute).toBeLessThanOrEqual(w["sismo.famille.cap"]);
+  });
+
+  it("un signal porte son propre pic : un appel d'offres remis en concurrence pèse autour de sa date limite", () => {
+    const court = noyau("AO_RENOUVELLEMENT", joursAvant(30), w, NOW, 30);
+    const long = noyau("AO_RENOUVELLEMENT", joursAvant(30), w, NOW, 120);
+    expect(court.valeur).toBeGreaterThan(0.95);
+    expect(long.valeur).toBeLessThan(court.valeur);
+    expect(long.picAt?.slice(0, 10)).toBe(new Date(NOW.getTime() + 90 * 86400000).toISOString().slice(0, 10));
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAll, lireCommandePublique, lireConjoncture, type EngineInput } from "../engine";
+import { computeAll, estServable, lireCommandePublique, lireConjoncture, lireInterimabilite, type EngineInput } from "../engine";
 import { defaultWeightMap } from "../weights-defaults";
 import type { EtabScoringInput, SignalScoringInput } from "../types";
 
@@ -10,6 +10,7 @@ const AGENCE = {
   lon: 5.3691,
   rayonKm: 30,
   romeCibles: ["F1703", "N1101"],
+  nafCibles: ["43"],
   nafExclus: ["78", "84"],
   departement: "13",
 };
@@ -57,6 +58,7 @@ function input(partial: Partial<EngineInput>): EngineInput {
     etablissements: [],
     signauxParSiret: new Map(),
     missionsBassin: [],
+    offresDirectesBassin: [],
     aoOuverts: [],
     agence: AGENCE,
     weights: w,
@@ -273,5 +275,91 @@ describe("portée de l'agence", () => {
     );
     expect(out.leads[0].segment).toBe("chaud");
     expect(out.leads[0].lieuBesoinFr).toBe("Aubagne");
+  });
+});
+
+describe("déclencheur qualifiant", () => {
+  it("une augmentation de capital seule ne fait pas un lead ; avec une offre, elle l'amplifie", () => {
+    const capital: SignalScoringInput = {
+      id: "k",
+      type: "BODACC_CAPITAL",
+      occurredAt: new Date(NOW.getTime() - 5 * 86400000).toISOString(),
+      confidence: 1,
+      payload: {},
+    };
+    const out = computeAll(
+      input({
+        etablissements: [etab("11111111100011"), etab("22222222200011"), etab("33333333300011")],
+        signauxParSiret: new Map([
+          ["11111111100011", [capital]],
+          ["22222222200011", [offre("a", 3)]],
+          ["33333333300011", [offre("b", 3), capital]],
+        ]),
+      }),
+    );
+    expect(out.leads.find((l) => l.siret === "11111111100011")).toBeUndefined();
+    const seule = out.leads.find((l) => l.siret === "22222222200011")!;
+    const amplifiee = out.leads.find((l) => l.siret === "33333333300011")!;
+    expect(amplifiee.sismo).toBeGreaterThan(seule.sismo);
+  });
+});
+
+describe("servabilité par l'agence", () => {
+  it("un besoin réel hors des secteurs et métiers de l'agence reste tiède, et le dit", () => {
+    const aideSoignant: SignalScoringInput = {
+      id: "h",
+      type: "OFFRE_MANQUE_CANDIDATS",
+      occurredAt: new Date(NOW.getTime() - 2 * 86400000).toISOString(),
+      confidence: 1,
+      payload: { intitule: "Aide-soignant (H/F)", rome: "J1501" },
+      romes: ["J1501"],
+    };
+    const out = computeAll(
+      input({
+        etablissements: [etab("11111111100011", { naf: "86.10Z" }), etab("22222222200011")],
+        signauxParSiret: new Map([
+          ["11111111100011", [aideSoignant]],
+          ["22222222200011", [{ ...aideSoignant, id: "m", payload: { intitule: "Maçon (H/F)", rome: "F1703" }, romes: ["F1703"] }]],
+        ]),
+      }),
+    );
+    const hopital = out.leads.find((l) => l.siret === "11111111100011")!;
+    const btp = out.leads.find((l) => l.siret === "22222222200011")!;
+    expect(hopital.servable).toBe(false);
+    expect(hopital.segment).toBe("nurturing");
+    expect(hopital.propositionFr).toContain("Hors secteurs et métiers de l'agence");
+    // le besoin lui-même est identique : le Sismo ne dépend pas de l'agence
+    expect(hopital.sismo).toBe(btp.sismo);
+    expect(btp.servable).toBe(true);
+    expect(btp.segment).toBe("chaud");
+  });
+
+  it("une agence sans cibles sert tout ; le NAF ou le métier suffit", () => {
+    expect(estServable("86.10Z", ["J1501"], { nafCibles: [], romeCibles: [] })).toBe(true);
+    expect(estServable("86.10Z", ["J1501"], { nafCibles: ["43"], romeCibles: ["F1703"] })).toBe(false);
+    expect(estServable("43.99C", ["J1501"], { nafCibles: ["43"], romeCibles: ["F1703"] })).toBe(true);
+    expect(estServable("86.10Z", ["F1703"], { nafCibles: ["43"], romeCibles: ["F1703"] })).toBe(true);
+    expect(estServable("43.99C", [], { nafCibles: ["43.99C"], romeCibles: [] })).toBe(true);
+  });
+});
+
+describe("intérimabilité mesurée", () => {
+  it("lit la part de missions par métier sur le bassin, et se tait sous le minimum d'annonces", () => {
+    const missions = [
+      ...Array.from({ length: 8 }, () => ({ rome: "N1101", occurredAt: NOW.toISOString() })),
+      ...Array.from({ length: 1 }, () => ({ rome: "G1803", occurredAt: NOW.toISOString() })),
+    ];
+    const directes = [
+      ...Array.from({ length: 2 }, () => ({ rome: "N1101" })),
+      ...Array.from({ length: 9 }, () => ({ rome: "G1803" })),
+      { rome: "K1104" },
+      { rome: null },
+    ];
+    const lire = lireInterimabilite(missions, directes, 5);
+    expect(lire(["N1101"])).toBeCloseTo(0.8, 2);
+    expect(lire(["G1803"])).toBeCloseTo(0.1, 2);
+    expect(lire(["K1104"])).toBeNull();
+    expect(lire(["ZZZZZ"])).toBeNull();
+    expect(lire([])).toBeNull();
   });
 });

@@ -3,7 +3,7 @@
  * pur, et (optionnellement) persiste scores, leads et le snapshot du jour.
  * Utilisé par `npm run score` et par l'API de recalcul en direct de /reglages.
  */
-import { inArray } from "drizzle-orm";
+import { eq, gte, notInArray } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
 import { chunk } from "../db/chunk";
@@ -11,8 +11,8 @@ import { tauxRecoursInterim } from "../reference/dares";
 import { tauxRecoursIdcc } from "../reference/idcc";
 import { facteurSaison } from "../reference/saison";
 import { lectureBmo } from "../reference/bmo";
-import { defaultWeightMap } from "./weights-defaults";
-import { computeAll, type EngineInput, type EngineOutput } from "./engine";
+import { defaultWeightMap, WEIGHT_DEFAULTS } from "./weights-defaults";
+import { computeAll, type EngineInput, type EngineOutput, type OffreBassin } from "./engine";
 import type { LectureSecteur } from "./strate";
 import type { SignalScoringInput, WeightMap } from "./types";
 
@@ -24,6 +24,29 @@ export const NAF_EXCLUS_DEFAUT = ["78", "84"];
 export async function loadWeights(db: Db): Promise<WeightMap> {
   const rows = await db.select().from(schema.weights);
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+/**
+ * Aligne la table `weights` sur le registre du code : un poids introduit après le
+ * dernier seed apparaît dans /reglages, un poids retiré du code n'y traîne plus.
+ * Les valeurs réglées à la main ne sont jamais touchées.
+ */
+export async function synchroniserWeights(db: Db): Promise<{ ajoutes: number; retires: number }> {
+  const now = new Date().toISOString();
+  const cles = WEIGHT_DEFAULTS.map((w) => w.key);
+  let ajoutes = 0;
+  for (const paquet of chunk(WEIGHT_DEFAULTS.map((w) => ({ ...w, updatedAt: now })))) {
+    const ecrits = await db
+      .insert(schema.weights)
+      .values(paquet)
+      .onConflictDoNothing()
+      .returning({ key: schema.weights.key });
+    ajoutes += ecrits.length;
+  }
+  const retires = (
+    await db.delete(schema.weights).where(notInArray(schema.weights.key, cles)).returning({ key: schema.weights.key })
+  ).length;
+  return { ajoutes, retires };
 }
 
 /** Taux de recours du secteur : la convention collective d'abord, la division NAF sinon. */
@@ -58,7 +81,9 @@ export async function loadEngineInput(
     }
   }
 
-  const [agenceRows, etabs, entreprises, signauxRows] = await Promise.all([
+  const now = new Date();
+  const JOUR_MS = 86400000;
+  const [agenceRows, etabs, entreprises, signauxRows, offresRows] = await Promise.all([
     db.select().from(schema.agence).limit(1),
     db.select().from(schema.etablissement),
     db.select().from(schema.entreprise),
@@ -66,6 +91,14 @@ export async function loadEngineInput(
     // ils n'ont ni SIRET ni SIREN et ne scorent personne, mais ils décrivent le
     // marché local et nourrissent Tempo.
     db.select().from(schema.signal),
+    // Le dénominateur de l'intérimabilité : TOUTES les offres directes du bassin
+    // des 90 derniers jours — nommées ou anonymes, rattachées ou non. Lues dans le
+    // staging plutôt que dans les signaux : une offre nommée mais non rattachée
+    // n'a pas de signal, et elle dit pourtant que ce métier se recrute ici.
+    db
+      .select({ rome: schema.offreBrute.rome, parAgenceInterim: schema.offreBrute.parAgenceInterim })
+      .from(schema.offreBrute)
+      .where(gte(schema.offreBrute.datePublication, new Date(now.getTime() - 90 * JOUR_MS).toISOString())),
   ]);
 
   const agenceRow = agenceRows[0];
@@ -86,15 +119,17 @@ export async function loadEngineInput(
 
   const signauxParSiret = new Map<string, SignalScoringInput[]>();
   const missionsBassin: { rome: string | null; occurredAt: string }[] = [];
+  const offresDirectesBassin: OffreBassin[] = offresRows
+    .filter((o) => o.parAgenceInterim !== 1)
+    .map((o) => ({ rome: o.rome }));
   const aoOuverts: { romes: string[]; dateLimite: string | null }[] = [];
   for (const s of signauxRows) {
+    const romePayload = typeof s.payload?.rome === "string" ? (s.payload.rome as string) : null;
     if (s.type === "MISSION_CONCURRENT") {
-      missionsBassin.push({
-        rome: typeof s.payload?.rome === "string" ? (s.payload.rome as string) : null,
-        occurredAt: s.occurredAt,
-      });
+      missionsBassin.push({ rome: romePayload, occurredAt: s.occurredAt });
       continue;
     }
+    if (s.type === "DEMANDE_ANONYME") continue;
     if (s.type === "AO_OUVERT") {
       aoOuverts.push({
         romes: s.romes ?? [],
@@ -148,12 +183,14 @@ export async function loadEngineInput(
     }),
     signauxParSiret,
     missionsBassin,
+    offresDirectesBassin,
     aoOuverts,
     agence: {
       lat: agenceRow.lat,
       lon: agenceRow.lon,
       rayonKm: agenceRow.rayonKm,
       romeCibles: agenceRow.romeCibles ?? [],
+      nafCibles: agenceRow.nafCibles ?? [],
       nafExclus: agenceRow.nafExclus ?? NAF_EXCLUS_DEFAUT,
       departement: agenceRow.departement ?? agenceRow.codePostal?.slice(0, 2) ?? null,
     },
@@ -161,7 +198,7 @@ export async function loadEngineInput(
     tauxRecours: lireSecteur,
     facteurSaison,
     bmo: (dept, romes) => lectureBmo(dept, romes),
-    now: new Date(),
+    now,
   };
 }
 
@@ -169,6 +206,7 @@ export async function runScoring(
   db: Db,
   opts: { persist: boolean; weightsOverride?: Partial<WeightMap> } = { persist: true },
 ): Promise<EngineOutput> {
+  if (opts.persist) await synchroniserWeights(db);
   const input = await loadEngineInput(db, opts.weightsOverride);
   const output = computeAll(input);
 
@@ -257,19 +295,13 @@ export async function runScoring(
       for (const paquet of chunk(sismos)) await tx.insert(schema.scoreSismo).values(paquet);
       for (const paquet of chunk(tempos)) await tx.insert(schema.scoreTempo).values(paquet);
       for (const paquet of chunk(leads)) await tx.insert(schema.lead).values(paquet);
-      // Le snapshot du jour est réécrit à chaque recalcul : un jour = un état.
-      if (snapshots.length > 0) {
-        for (const paquet of chunk(snapshots)) {
-          await tx
-            .delete(schema.scoreSnapshot)
-            .where(
-              inArray(
-                schema.scoreSnapshot.siret,
-                paquet.map((s) => s.siret),
-              ),
-            );
-        }
-      }
+      // Le snapshot DU JOUR est réécrit à chaque recalcul : un jour = un état.
+      // Le filtre sur `jour` est ce qui fait exister la mémoire : sans lui, chaque
+      // recalcul effaçait tout l'historique des établissements rescorés — constaté
+      // le 10/09/2026, un seul jour de snapshots après quinze jours d'ingestion.
+      // Tout le jour, pas seulement les SIRET rescorés : un établissement qui n'est
+      // plus un lead ce soir ne doit pas rester dans l'état du jour.
+      await tx.delete(schema.scoreSnapshot).where(eq(schema.scoreSnapshot.jour, jour));
       for (const paquet of chunk(snapshots)) {
         await tx.insert(schema.scoreSnapshot).values(paquet).onConflictDoNothing();
       }

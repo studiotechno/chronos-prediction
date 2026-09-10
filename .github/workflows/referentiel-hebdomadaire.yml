@@ -1,0 +1,47 @@
+# Référentiel hebdomadaire — les sources lentes.
+#
+# SIRENE (établissements du bassin, finances, conventions collectives), les
+# sites classés Géorisques et les ratios INPI ne changent pas d'un jour à
+# l'autre, et la lecture SIRENE prend près de deux heures à 5 requêtes par
+# seconde. Une fois par semaine suffit ; le quotidien reste réservé aux sources
+# qui bougent (ingestion-quotidienne.yml).
+name: Référentiel hebdomadaire
+
+on:
+  schedule:
+    # Dimanche 02:00 UTC.
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: ingestion
+  cancel-in-progress: false
+
+jobs:
+  referentiel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      INGEST_NO_CACHE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Migrations
+        run: npm run db:migrate
+      - name: SIRENE (référentiel du bassin, ouvertures d'établissements)
+        continue-on-error: true
+        run: npm run ingest:sirene
+      - name: Géorisques (sites classés)
+        continue-on-error: true
+        run: npm run ingest:georisques
+      - name: INPI / BCE (comptes annuels, tendance du chiffre d'affaires)
+        continue-on-error: true
+        run: npx tsx scripts/ingest/inpi.ts
+      - name: Scoring et snapshot du jour
+        if: always()
+        run: npm run score

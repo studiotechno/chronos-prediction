@@ -1,17 +1,25 @@
-# Ingestion et scoring quotidiens.
+# Ingestion et scoring quotidiens — les sources qui bougent tous les jours.
 #
 # Le moteur accumule sa valeur avec l'observation : les dérivées d'offres
-# (republication, réactualisation, vélocité) et l'historique des scores
+# (republication, réactualisation, vélocité, clôture) et l'historique des scores
 # (score_snapshot) n'existent que si quelqu'un regarde tous les jours.
-# Ce workflow le fait, même sans utilisateur.
+#
+# Le référentiel SIRENE et les sites ICPE ne changent pas d'un jour à l'autre :
+# ils ont leur propre workflow hebdomadaire (referentiel-hebdomadaire.yml).
+# Constaté du 29/08 au 08/09/2026 : avec SIRENE dans la boucle quotidienne,
+# 11 exécutions sur 13 dépassaient les 120 minutes et étaient annulées — sans
+# scoring, donc sans snapshot, donc sans mémoire.
+#
+# Chaque source tourne dans son propre pas et n'arrête pas les suivantes ; le
+# scoring tourne toujours, même après une source en échec.
 #
 # Secrets à renseigner dans le dépôt : DATABASE_URL, FRANCETRAVAIL_CLIENT_ID,
-# FRANCETRAVAIL_CLIENT_SECRET (et LBB_ENDPOINT si l'accès La Bonne Boîte est ouvert).
+# FRANCETRAVAIL_CLIENT_SECRET.
 name: Ingestion quotidienne
 
 on:
   schedule:
-    # 04:30 UTC tous les jours — après la mise à jour nocturne de l'INSEE (0h-3h).
+    # 04:30 UTC tous les jours (GitHub peut décaler l'heure de quelques dizaines de minutes).
     - cron: "30 4 * * *"
   workflow_dispatch:
 
@@ -22,7 +30,7 @@ concurrency:
 jobs:
   ingest-and-score:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       FRANCETRAVAIL_CLIENT_ID: ${{ secrets.FRANCETRAVAIL_CLIENT_ID }}
@@ -37,7 +45,21 @@ jobs:
       - run: npm ci
       - name: Migrations
         run: npm run db:migrate
-      - name: Ingestion (sirene → offres → boamp → decp → bodacc → georisques → acco)
-        run: npm run ingest:all
+      - name: Offres France Travail (90 jours, clôture, rapprochement, dérivation)
+        continue-on-error: true
+        run: npm run ingest:offres
+      - name: BOAMP (attributions, appels d'offres, renouvellements)
+        continue-on-error: true
+        run: npm run ingest:boamp
+      - name: DECP (marchés attribués, montants, lieux)
+        continue-on-error: true
+        run: npm run ingest:decp
+      - name: BODACC (procédures, capital)
+        continue-on-error: true
+        run: npm run ingest:bodacc
+      - name: ACCO (accords d'entreprise)
+        continue-on-error: true
+        run: npm run ingest:acco
       - name: Scoring et snapshot du jour
+        if: always()
         run: npm run score

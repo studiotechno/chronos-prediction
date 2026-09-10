@@ -26,12 +26,17 @@ export type MissionBassin = { rome: string | null; occurredAt: string };
 /** Appel d'offres public ouvert sur le bassin (signal AO_OUVERT), sans titulaire encore. */
 export type AoBassin = { romes: string[]; dateLimite: string | null };
 
+/** Offre directe publiée sur le bassin (nommée ou anonyme) : le dénominateur de l'intérimabilité. */
+export type OffreBassin = { rome: string | null };
+
 export type EngineInput = {
   etablissements: EtabScoringInput[];
   /** Signaux rattachés, par SIRET (les signaux à siret NULL ne scorent personne). */
   signauxParSiret: Map<string, SignalScoringInput[]>;
-  /** Missions concurrentes du bassin, pour la conjoncture de Tempo. */
+  /** Missions concurrentes du bassin, pour la conjoncture de Tempo et l'intérimabilité. */
   missionsBassin: MissionBassin[];
+  /** Offres directes du bassin (≤ 90 j), pour l'intérimabilité mesurée par métier. */
+  offresDirectesBassin: OffreBassin[];
   /** Appels d'offres ouverts du bassin, pour la commande publique de Tempo. */
   aoOuverts: AoBassin[];
   agence: AgenceScoringInput & { departement: string | null };
@@ -99,6 +104,43 @@ export function lireConjoncture(missions: MissionBassin[], now: Date): (romes: s
 }
 
 /**
+ * Intérimabilité mesurée par métier : sur le bassin, quelle part des annonces de ce
+ * ROME sont des missions d'intérim ? Le bassin publie la réponse que la liste de
+ * métiers cibles de l'agence ne savait pas donner — mesuré sur l'Allier, cette
+ * liste couvrait 18 signaux d'offres sur 532, la mesure en couvre 348. Muette en
+ * dessous de `min_obs` annonces : le secteur prend alors le relais (sismo.ts).
+ */
+export function lireInterimabilite(
+  missions: MissionBassin[],
+  offresDirectes: OffreBassin[],
+  minObs: number,
+): (romes: string[]) => number | null {
+  const parRome = new Map<string, { missions: number; directes: number }>();
+  const compte = (rome: string | null, champ: "missions" | "directes") => {
+    if (!rome) return;
+    const acc = parRome.get(rome) ?? { missions: 0, directes: 0 };
+    acc[champ]++;
+    parRome.set(rome, acc);
+  };
+  for (const m of missions) compte(m.rome, "missions");
+  for (const o of offresDirectes) compte(o.rome, "directes");
+
+  return (romes: string[]) => {
+    let mis = 0;
+    let dir = 0;
+    for (const r of romes) {
+      const acc = parRome.get(r);
+      if (!acc) continue;
+      mis += acc.missions;
+      dir += acc.directes;
+    }
+    const total = mis + dir;
+    if (total < Math.max(1, minObs)) return null;
+    return mis / total;
+  };
+}
+
+/**
  * Appels d'offres encore ouverts portant sur les métiers demandés : du travail va
  * être commandé sur le bassin, et quelqu'un va le gagner. Lecture positive seulement
  * — l'absence d'appel d'offres ne dit rien.
@@ -119,12 +161,34 @@ export function lireCommandePublique(
   };
 }
 
-function nafExclu(naf: string, exclus: string[]): boolean {
+/** Le NAF appartient-il à la liste (divisions sur deux chiffres ou codes complets). */
+function nafDans(naf: string, liste: string[]): boolean {
   const chiffres = naf.replace(/[^0-9]/g, "");
-  return exclus.some((e) => {
+  return liste.some((e) => {
     const c = e.replace(/[^0-9A-Za-z]/g, "");
     return c.length <= 2 ? chiffres.startsWith(c) : naf.replace(/[^0-9A-Za-z]/g, "").toUpperCase().startsWith(c.toUpperCase());
   });
+}
+
+function nafExclu(naf: string, exclus: string[]): boolean {
+  return nafDans(naf, exclus);
+}
+
+/**
+ * Servabilité : l'agence travaille-t-elle ce secteur ou place-t-elle ces métiers ?
+ * Le besoin (Sismo) ne dépend pas de l'agence ; ceci, si. Une agence sans cibles
+ * déclarées sert tout.
+ */
+export function estServable(
+  naf: string,
+  romesInduits: string[],
+  agence: { nafCibles: string[]; romeCibles: string[] },
+): boolean {
+  const nafs = agence.nafCibles ?? [];
+  const romes = agence.romeCibles ?? [];
+  if (nafs.length === 0 && romes.length === 0) return true;
+  if (nafs.length > 0 && nafDans(naf, nafs)) return true;
+  return romes.length > 0 && romesInduits.some((r) => romes.includes(r));
 }
 
 export function computeAll(input: EngineInput): EngineOutput {
@@ -134,6 +198,11 @@ export function computeAll(input: EngineInput): EngineOutput {
   const leads: LeadResult[] = [];
   const conjoncture = lireConjoncture(input.missionsBassin, input.now);
   const commandePublique = lireCommandePublique(input.aoOuverts, input.now);
+  const interimabilite = lireInterimabilite(
+    input.missionsBassin,
+    input.offresDirectesBassin ?? [],
+    input.weights["sismo.interimabilite.min_obs"] ?? 5,
+  );
   const exclus = input.agence.nafExclus ?? [];
 
   for (const etab of input.etablissements) {
@@ -169,7 +238,7 @@ export function computeAll(input: EngineInput): EngineOutput {
     });
     const sismo = computeSismo(signaux, {
       weights: input.weights,
-      romeCibles: input.agence.romeCibles,
+      interimabilite,
       tauxSecteurPct: secteur.exclu ? 0 : secteur.tauxPct,
       now: input.now,
     });
@@ -188,9 +257,10 @@ export function computeAll(input: EngineInput): EngineOutput {
     sismos.set(etab.siret, sismo);
     tempos.set(etab.siret, tempo);
 
-    // Un lead n'existe que s'il y a au moins un déclencheur positif : un
-    // établissement sans rien, ou seulement en procédure collective, est hors radar.
-    if (!sismo.contributions.some((c) => c.contribution > 0)) continue;
+    // Un lead n'existe que s'il porte au moins un DÉCLENCHEUR QUALIFIANT : un
+    // établissement sans rien, seulement en procédure collective, ou connu par une
+    // simple augmentation de capital, est hors radar.
+    if (!sismo.aDeclencheurQualifiant) continue;
 
     const { scoreFinal, segment: segmentBrut } = computeFinal(
       strate.score,
@@ -205,13 +275,16 @@ export function computeAll(input: EngineInput): EngineOutput {
     // d'un lead servable dans la liste d'appels.
     const porteeMax = (input.weights["final.rayon_max_facteur"] ?? 3) * input.agence.rayonKm;
     const horsPortee = strate.distanceKm != null && strate.distanceKm > porteeMax;
-    const segment = horsPortee ? "nurturing" : segmentBrut;
+    // Hors de l'offre de l'agence : le besoin est réel, mais ce n'est pas elle qui le servira.
+    const servable = estServable(etab.naf, sismo.romesInduits, input.agence);
+    const segment = horsPortee || !servable ? "nurturing" : segmentBrut;
     const { raisonFr, propositionFr, topSignals } = buildRaison(signaux, sismo.contributions, {
       tauxRecoursSecteur: secteur.tauxPct,
       romesInduits: sismo.romesInduits,
       fenetre: sismo.fenetre,
       lieuFr: strate.lieuFr,
       distanceKm: strate.distanceKm,
+      servable,
       now: input.now,
     });
 
@@ -222,6 +295,7 @@ export function computeAll(input: EngineInput): EngineOutput {
       sismo: sismo.score,
       tempo: tempo.score,
       segment,
+      servable,
       raisonFr,
       propositionFr,
       fenetre: sismo.fenetre,

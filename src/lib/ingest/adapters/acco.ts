@@ -215,8 +215,14 @@ export const accoAdapter: SourceAdapter<AccoRaw> = {
     } else {
       return [];
     }
-    const date = raw.dateEffet ?? raw.dateTexte ?? raw.dateDiffusion;
+    // La date de SIGNATURE est l'information ; la date d'effet peut être dans le
+    // futur (accords signés pour l'année suivante — un cas réel daté du
+    // 01/01/2027 pesait à plein pendant des mois). Un signal n'est jamais daté
+    // après le jour de sa lecture.
+    const date = raw.dateTexte ?? raw.dateDiffusion ?? raw.dateEffet;
     if (!date) return [];
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const jour = date.slice(0, 10) > aujourdhui ? aujourdhui : date.slice(0, 10);
     return [
       {
         kind: "signal",
@@ -225,7 +231,7 @@ export const accoAdapter: SourceAdapter<AccoRaw> = {
           siren: raw.siret.slice(0, 9),
           type,
           source: "acco",
-          occurredAt: `${date.slice(0, 10)}T00:00:00.000Z`,
+          occurredAt: `${jour}T00:00:00.000Z`,
           confidence: 1,
           payload: {
             numero: raw.numero,
@@ -233,6 +239,7 @@ export const accoAdapter: SourceAdapter<AccoRaw> = {
             themes: retenus,
             themesFr: libelles.join(", "),
             idcc: raw.codeIdcc,
+            dateEffet: raw.dateEffet ?? null,
             ape: raw.codeApe,
             raisonSociale: raw.raisonSociale,
             dateFin: raw.dateFin,

@@ -44,6 +44,12 @@ export const SIGNAL_TYPES = [
   "ACCORD_RESTRUCTURATION",
   // Urbanisme (Sitadel) — adapter à venir, le moteur sait déjà le scorer
   "PERMIS_LOCAUX",
+  // Implantation (SIRENE) : une entreprise établie ouvre un site sur le bassin
+  "ETAB_NOUVEAU",
+  // Anticipation (BOAMP) : le marché du titulaire sortant est remis en concurrence
+  "AO_RENOUVELLEMENT",
+  // Bassin (France Travail) : offre directe sans employeur nommé — nourrit l'intérimabilité mesurée
+  "DEMANDE_ANONYME",
 ] as const;
 
 export type SignalType = (typeof SIGNAL_TYPES)[number];
@@ -71,13 +77,20 @@ export const FAMILLE_PAR_TYPE: Record<SignalType, string> = {
   ACCORD_SURCHARGE: "accords",
   ACCORD_RESTRUCTURATION: "accords",
   PERMIS_LOCAUX: "urbanisme",
+  ETAB_NOUVEAU: "implantation",
+  AO_RENOUVELLEMENT: "commande_publique",
+  DEMANDE_ANONYME: "bassin",
 };
 
 export function familleDeType(type: string): string {
   return (FAMILLE_PAR_TYPE as Record<string, string>)[type] ?? "autre";
 }
 
-/** Types dont la contribution est multipliée par l'intensité intérim du secteur. */
+/**
+ * Types dont la contribution est multipliée par l'intérimabilité du besoin :
+ * la part de missions d'intérim mesurée sur le bassin pour le métier de l'offre,
+ * à défaut l'intensité intérim du secteur (convention collective, division NAF).
+ */
 export const TYPES_SECTORISES = new Set<string>([
   "OFFRE_DIRECTE",
   "OFFRE_VELOCITE",
@@ -86,6 +99,28 @@ export const TYPES_SECTORISES = new Set<string>([
   "OFFRE_MANQUE_CANDIDATS",
   "OFFRE_MULTIPOSTES",
   "CDD_COURT_REPETE",
+]);
+
+/**
+ * Déclencheurs QUALIFIANTS : un établissement n'est un lead que s'il en porte au
+ * moins un. Les autres signaux positifs (capital, chiffre d'affaires, effectif)
+ * amplifient un besoin déjà manifesté, ils ne le prouvent pas — mesuré sur
+ * l'Allier, 183 leads sur 512 ne tenaient qu'à une augmentation de capital, dont
+ * 149 à plus de 50 km de l'agence.
+ */
+export const TYPES_QUALIFIANTS = new Set<string>([
+  "OFFRE_DIRECTE",
+  "OFFRE_VELOCITE",
+  "OFFRE_REPUBLIEE",
+  "OFFRE_REACTUALISEE",
+  "OFFRE_MANQUE_CANDIDATS",
+  "OFFRE_MULTIPOSTES",
+  "CDD_COURT_REPETE",
+  "MARCHE_ATTRIBUE",
+  "AO_RENOUVELLEMENT",
+  "ACCORD_SURCHARGE",
+  "PERMIS_LOCAUX",
+  "ETAB_NOUVEAU",
 ]);
 
 type PoidsSignal = {
@@ -237,6 +272,34 @@ const SIGNAUX: PoidsSignal[] = [
     label: "permis de construire de locaux",
     description:
       "Permis de locaux non résidentiels : chantier (pic à 4 mois) puis exploitation. Noyau à retard.",
+  },
+  {
+    type: "ETAB_NOUVEAU",
+    poids: 18,
+    demiVie: 120,
+    pic: 45,
+    largeur: 0.7,
+    label: "ouverture d'un établissement",
+    description:
+      "Une entreprise établie depuis plus d'un an ouvre un site sur le bassin (SIRENE, date de début d'activité) : le recrutement suit l'ouverture. Noyau à retard.",
+  },
+  {
+    type: "AO_RENOUVELLEMENT",
+    poids: 15,
+    demiVie: 120,
+    pic: 90,
+    largeur: 0.5,
+    label: "marché du titulaire remis en concurrence",
+    description:
+      "Le même acheteur relance un appel d'offres semblable à un marché que l'entreprise détient : titulaire sortant et concurrents habituels vont devoir staffer. Le pic est calé sur la date limite de remise des offres.",
+  },
+  {
+    type: "DEMANDE_ANONYME",
+    poids: 0,
+    demiVie: 60,
+    label: "offre directe sans employeur nommé",
+    description:
+      "Ne score personne (0 par construction) : un quart des offres ne nomment pas l'employeur. Elles comptent dans l'intérimabilité mesurée des métiers du bassin.",
   },
 ];
 
@@ -477,22 +540,49 @@ export const WEIGHT_DEFAULTS: WeightDef[] = [
     descriptionFr: "Pente de la logistique. Plus elle est faible, plus la courbe est abrupte.",
   },
   {
-    key: "sismo.rome_hors_cible",
-    value: 0.25,
-    min: 0,
+    key: "sismo.interimabilite.ref",
+    value: 0.3,
+    min: 0.05,
     max: 1,
-    labelFr: "Facteur ROME hors cible",
+    labelFr: "Intérimabilité mesurée : part de missions pour le plein",
     descriptionFr:
-      "Multiplicateur appliqué aux signaux d'offres dont le métier (ROME) n'est pas dans les cibles de l'agence. Neutralise le bruit des métiers non intérimables (ex. cabinet de conseil).",
+      "Pour le métier (ROME) d'une offre, le bassin publie la réponse : la part des annonces de ce métier qui sont des missions d'intérim. À cette part, le signal d'offre pèse à plein ; en dessous, il est réduit proportionnellement. Remplace la liste binaire de métiers cibles, qui ne couvrait que 3 % des offres réelles.",
+  },
+  {
+    key: "sismo.interimabilite.min_obs",
+    value: 5,
+    min: 1,
+    max: 50,
+    labelFr: "Intérimabilité mesurée : annonces minimales",
+    descriptionFr:
+      "Nombre d'annonces (missions + offres directes) observées sur le bassin pour un métier en dessous duquel la mesure se tait et l'intensité du secteur prend le relais.",
   },
   {
     key: "sismo.secteur.plancher",
     value: 0.15,
     min: 0,
     max: 1,
-    labelFr: "Facteur secteur : plancher",
+    labelFr: "Intérimabilité : plancher",
     descriptionFr:
-      "Les signaux d'offres sont multipliés par l'intensité intérim du secteur (taux / taux de saturation, plafonné à 1). Ce plancher évite d'annuler totalement un secteur à faible recours.",
+      "Les signaux d'offres sont multipliés par l'intérimabilité du besoin — mesurée sur le bassin pour le métier, à défaut l'intensité intérim du secteur (taux / taux de saturation). Ce plancher évite d'annuler totalement un métier ou un secteur à faible recours.",
+  },
+  {
+    key: "sismo.recurrence.jours",
+    value: 30,
+    min: 7,
+    max: 180,
+    labelFr: "Récurrence : fenêtre (jours)",
+    descriptionFr:
+      "Deux déclencheurs qualifiants dans cette fenêtre valent plus que deux déclencheurs à six mois d'écart : c'est la corroboration dans le temps, en plus de la corroboration entre familles de sources.",
+  },
+  {
+    key: "sismo.recurrence.bonus",
+    value: 0.15,
+    min: 0,
+    max: 1,
+    labelFr: "Récurrence : bonus par déclencheur supplémentaire",
+    descriptionFr:
+      "Chaque déclencheur qualifiant distinct au-delà du premier dans la fenêtre de récurrence multiplie la somme par (1 + bonus), jusqu'à trois.",
   },
   {
     key: "sismo.famille.cap",

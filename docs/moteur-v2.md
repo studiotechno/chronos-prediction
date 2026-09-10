@@ -1,8 +1,17 @@
-# Moteur V2 — Strate, Sismo, Tempo
+# Moteur V2 — Socle, Pouls, Tempo
 
 Note de conception détaillée : <https://claude.ai/code/artifact/ee18c40f-168d-4f99-ab9d-b720d302765e>
 (diagnostic sur données réelles du 28/08/2026, catalogue des sources, feuille de route).
 Ce document décrit ce que le code fait **maintenant**.
+
+> **Vocabulaire.** Les deux premières couches s'appellent **Socle** et **Pouls** dans
+> l'interface — « Strate » et « Sismo » étant déjà pris par un autre produit maison.
+> Le code, les tables (`score_strate`, `score_sismo`) et les clés de poids
+> (`strate.*`, `sismo.*`) gardent les noms d'origine : renommer aurait imposé une
+> migration et la réécriture des poids stockés, sans rien apporter au lecteur.
+> Ce document parle donc de Socle/Pouls pour le produit, et de `strate`/`sismo`
+> chaque fois qu'il désigne un identifiant réel. De même, le segment hors flux
+> principal s'affiche **« lead tiède »** ; sa valeur en base reste `nurturing`.
 
 ## Ce que l'on prédit
 
@@ -10,16 +19,16 @@ Un lead, c'est la réponse à trois questions à la fois :
 
 | Composante | Question | Change | Fichier |
 |---|---|---|---|
-| **Strate** (0-100, acier) | *qui* — ce secteur, cette taille, cette santé, ce site consomment-ils de l'intérim ? | lentement | `src/lib/scoring/strate.ts` |
-| **Sismo** (0-100, ambre) | *quoi vient de bouger* — offres, marchés, permis, accords, capital, chacun avec son horloge | tous les jours | `src/lib/scoring/sismo.ts` |
+| **Socle** (0-100, acier) | *qui* — ce secteur, cette taille, cette santé, ce site consomment-ils de l'intérim ? | lentement | `src/lib/scoring/strate.ts` |
+| **Pouls** (0-100, ambre) | *quoi vient de bouger* — offres, marchés, permis, accords, capital, chacun avec son horloge | tous les jours | `src/lib/scoring/sismo.ts` |
 | **Tempo** (facteur ≈ 1) | *quand* — saison, difficulté de recrutement, conjoncture locale, fenêtre d'appel | tous les jours | `src/lib/scoring/tempo.ts` |
 
 ```
-Final = 100 × (Strate/100)^α × (Sismo/100)^β × Tempo^γ        (final.ts)
+Final = 100 × (Socle/100)^α × (Pouls/100)^β × Tempo^γ        (final.ts)
 ```
 
 **Portée de l'agence** : au-delà de `final.rayon_max_facteur` × rayon (défaut 5), un
-établissement part en nurturing quel que soit son score. Les sources départementales
+établissement reste tiède quel que soit son score. Les sources départementales
 (BODACC, commande publique) ramènent des sièges de toute la France — mesuré sur l'Allier,
 deux sociétés parisiennes à 265 km entraient dans les leads chauds sur une simple
 augmentation de capital. La distance retenue est celle du besoin quand un signal en porte
@@ -29,8 +38,21 @@ Multiplicatif : un excellent fit sans déclencheur n'est pas un lead. Tempo est 
 (`tempo.min` … `tempo.max`) : il ordonne les appels de la semaine, il ne décide pas de
 la liste. La règle du seuil chaud (`final.seuil_chaud` sur le Sismo) est inchangée.
 
-Un établissement n'est un lead que s'il porte **au moins un déclencheur positif** : une
-entreprise connue seulement par sa procédure collective est hors radar, pas en nurturing.
+Un établissement n'est un lead que s'il porte **au moins un déclencheur qualifiant**
+(`TYPES_QUALIFIANTS` : offres, marché attribué ou remis en concurrence, accord de surcharge,
+permis, ouverture d'établissement). Une augmentation de capital ou une hausse de chiffre
+d'affaires **amplifient** un besoin déjà manifesté, elles ne le prouvent pas — mesuré le
+10/09/2026 sur l'Allier, 183 leads sur 512 ne tenaient qu'à une augmentation de capital,
+dont 149 à plus de 50 km. Une entreprise connue seulement par sa procédure collective
+est hors radar, pas en nurturing.
+
+**Besoin et servabilité sont deux questions.** Le Pouls dit s'il y a un besoin de
+main-d'œuvre courte, indépendamment de l'agence ; la **servabilité** dit si *cette*
+agence peut le servir : secteur dans ses NAF cibles, ou métier induit dans ses ROME
+(`engine.ts` → `estServable`, une agence sans cibles sert tout). Un besoin réel hors de
+son offre reste tiède, et la proposition le dit (« Hors secteurs et métiers de l'agence »).
+Cette séparation prépare le multi-agences : un besoin calculé une fois, une servabilité
+par agence.
 
 ## Strate V2 — composantes
 
@@ -62,12 +84,34 @@ contribution = poids × confiance × facteurs × K_type(âge)
   du lead est celle du signal à retard le plus contributif encore à venir
   (`[pic × e^−largeur, pic × e^+largeur]` jours après le signal).
 
-**Facteurs** :
-- ROME hors cibles de l'agence : `sismo.rome_hors_cible` (les `romes` induits priment sur `payload.rome`) ;
-- **secteur** : les signaux d'offres sont multipliés par `max(sismo.secteur.plancher,
-  min(1, taux / strate.naf.taux_ref))` — le supermarché à 12 offres retombe à sa place ;
-- marché : montant / `sismo.marche.montant_ref` (inconnu → 0,6), CPV ou métiers induits hors cible → `sismo.marche.cpv_hors_cible` ;
+Un signal peut porter son propre pic (`payload.picJours`) : un appel d'offres remis en
+concurrence pèse autour de sa date limite de remise des offres, pas à un délai fixe.
+
+**Facteur de besoin des offres** (`sismo.ts` → `facteurBesoin()`) — jamais deux
+multiplicateurs à la fois, c'est ce qui écrasait tout en V2 :
+- **intérimabilité mesurée du métier** : sur le bassin, la part des annonces du ROME de
+  l'offre qui sont des missions d'intérim (`engine.ts` → `lireInterimabilite`, missions
+  concurrentes ÷ missions + offres directes nommées ou anonymes, sur 90 jours). À
+  `sismo.interimabilite.ref` (30 %) de missions, l'offre pèse à plein ; en dessous,
+  proportionnellement ; jamais sous `sismo.secteur.plancher`. Muette sous
+  `sismo.interimabilite.min_obs` annonces. Mesuré sur l'Allier : la liste de ROME cibles
+  de l'agence couvrait 18 signaux d'offres sur 532, la mesure en couvre 348 ;
+- **secteur**, en repli seulement : `max(plancher, min(1, taux / strate.naf.taux_ref))`
+  sur la convention collective, à défaut la division NAF ;
+- les `romes` induits priment sur `payload.rome`. Les cibles de l'agence ne multiplient
+  plus rien : elles jugent la servabilité, après le score.
+
+**Autres facteurs** :
+- marché : montant / `sismo.marche.montant_ref` (inconnu → 0,6 ; le BOAMP le publie
+  désormais dès le jour J), CPV ou métiers induits hors cible → `sismo.marche.cpv_hors_cible` ;
 - multipostes : `nombrePostes / sismo.postes.ref` ; réactualisation : `nbActualisations / sismo.actualisations.ref`.
+
+**Dates d'observation.** Un signal se date au moment où l'information devient
+observable, jamais avant, jamais dans le futur : le manque de candidats au jour où
+France Travail a posé le drapeau (il le pose des semaines après la publication — 0 offre
+de septembre le portait le 10/09, 92 d'août), l'accord d'entreprise à sa signature (la
+date d'effet, parfois l'année suivante, reste dans le payload), le marché à sa date
+d'attribution quand le BOAMP la donne.
 
 **Dédoublonnage des marchés** : le BOAMP publie l'attribution le jour même, le DECP
 republie le même marché des semaines plus tard avec son montant. Deux `MARCHE_ATTRIBUE`
@@ -76,18 +120,27 @@ se ressemblent (trigrammes ≥ `sismo.marche.dedup_similarite`), ne comptent qu'
 la contribution la plus forte est gardée, les autres passent à zéro tout en restant dans
 la chronologie — les deux avis existent bel et bien. Sans objet publié, aucune fusion.
 
-**Corroboration** : les contributions positives sont sommées **par famille de source**
-(`FAMILLE_PAR_TYPE` : offres, commande_publique, registre, accords, urbanisme) et
-saturées vers `sismo.famille.cap` (`cap × (1 − e^(−somme/cap))`) ; la somme est ensuite
-multipliée par `1 + sismo.corroboration.bonus × (familles positives − 1)`. Les malus ne
-saturent pas. Puis normalisation logistique inchangée.
+**Récurrence, saturation, corroboration** — dans cet ordre :
+- *récurrence* : dans une même famille, chaque déclencheur qualifiant distinct au-delà du
+  premier dans les `sismo.recurrence.jours` derniers jours multiplie la somme de la famille
+  par `1 + sismo.recurrence.bonus` (jusqu'à trois) — deux offres en manque de candidats ce
+  mois-ci valent plus que deux à six mois d'écart ;
+- *saturation* **par famille de source** (`FAMILLE_PAR_TYPE` : offres, commande_publique,
+  registre, accords, urbanisme, implantation) vers `sismo.famille.cap`
+  (`cap × (1 − e^(−somme/cap))`) — la récurrence s'applique avant, une famille ne dépasse
+  jamais son plafond ;
+- *corroboration* : la somme est multipliée par `1 + sismo.corroboration.bonus × (familles
+  positives − 1)`. Les malus ne saturent pas. Puis normalisation logistique inchangée.
 
 | Signal | Source | Noyau | Polarité |
 |---|---|---|---|
 | OFFRE_DIRECTE, OFFRE_VELOCITE, OFFRE_REPUBLIEE, CDD_COURT_REPETE | France Travail | immédiat | + |
 | OFFRE_REACTUALISEE, OFFRE_MANQUE_CANDIDATS, OFFRE_MULTIPOSTES *(nouveaux)* | France Travail | immédiat | + |
-| MARCHE_ATTRIBUE | BOAMP (J+0, titulaire rapproché par nom) puis DECP (montant, SIRET) | à retard, pic 75 j | + |
-| AO_OUVERT *(nouveau, bassin)* | BOAMP | — (poids 0) | Tempo |
+| MARCHE_ATTRIBUE | BOAMP (J+0, avis eForms ou classique : titulaire, code postal, montant, CPV, lieu d'exécution ou commune de l'acheteur) puis DECP (SIRET, lieu au code postal) | à retard, pic 75 j | + |
+| AO_RENOUVELLEMENT *(nouveau)* | BOAMP : le même acheteur relance un marché semblable à celui du titulaire | à retard, pic = date limite + 60 j | + |
+| AO_OUVERT *(bassin)* | BOAMP | — (poids 0) | Tempo |
+| ETAB_NOUVEAU *(nouveau)* | SIRENE : une entreprise de plus d'un an ouvre un site (date de début d'activité ≤ 180 j) | à retard, pic 45 j | + |
+| DEMANDE_ANONYME *(nouveau, bassin)* | France Travail : offre directe sans employeur nommé | — (poids 0) | intérimabilité |
 | EFFECTIF_UP, BODACC_CAPITAL | SIRENE, BODACC | immédiat | + |
 | CA_CROISSANCE / CA_BAISSE *(nouveaux)* | RNE via API Recherche | immédiat, demi-vie 1 an | + / − |
 | BODACC_RISQUE | BODACC | immédiat, demi-vie 1 an | − |
@@ -122,12 +175,18 @@ le 15 octobre et le 15 novembre · Besoin à Saint-Pourçain-sur-Sioule (12 km) 
 
 ## Mémoire et apprentissage
 
-- `score_snapshot (jour, siret)` : réécrit à chaque `npm run score`, un état par jour.
-  C'est la matière du backtest et des tendances.
+- `score_snapshot (jour, siret)` : le snapshot **du jour** est réécrit à chaque
+  `npm run score`, un état par jour. C'est la matière du backtest et des tendances.
+  (Jusqu'au 10/09/2026, la réécriture effaçait tous les jours des établissements
+  rescorés : quinze jours d'ingestion n'avaient laissé qu'un jour de mémoire.)
 - `crm_outcome` : chaque changement de statut d'un lead y laisse une ligne avec le score
   et les signaux du moment.
-- `.github/workflows/ingestion-quotidienne.yml` : ingestion + scoring tous les jours à
-  04:30 UTC (secrets `DATABASE_URL`, `FRANCETRAVAIL_CLIENT_ID/SECRET`).
+- `.github/workflows/ingestion-quotidienne.yml` : les sources qui bougent (offres sur
+  90 jours avec clôture, BOAMP, DECP, BODACC, ACCO) puis scoring, tous les jours à 04:30
+  UTC ; chaque source dans son pas, le scoring tourne même après un échec.
+  `referentiel-hebdomadaire.yml` : SIRENE, Géorisques, INPI le dimanche. Avec SIRENE
+  dans la boucle quotidienne, 11 exécutions sur 13 dépassaient les 120 minutes et
+  étaient annulées sans scoring (29/08 → 08/09/2026).
 
 ## Tables de référence embarquées
 
@@ -166,4 +225,9 @@ réel — et couverts par des tests — méritent d'être connus avant d'ajouter
   `LBB_ENDPOINT` dès que France Travail confirme le chemin.
 - **Poids appris** : `crm_outcome` et `score_snapshot` se remplissent ; la réestimation
   des poids (régression logistique → table `weights`) viendra avec les premières
-  conversions.
+  conversions. L'étiquette proxy du backtest partage ses sources avec les features :
+  elle compare deux versions du moteur, elle ne mesure pas une précision.
+- **Seuil chaud calibré** : `final.seuil_chaud` reste absolu ; sa calibration sur les
+  conversions (ou, à défaut, sur la capacité d'appel de l'agence) attend la mémoire.
+- **Offres anonymes rattachées** : un quart des offres ne nomment pas l'employeur ; elles
+  nourrissent l'intérimabilité et la demande locale, pas un établissement.

@@ -307,16 +307,31 @@ export function trancheCodeDepuisLibelle(libelle: string | null | undefined): st
 }
 
 const MOTIFS_AGENCES = [
-  "adecco", "manpower", "randstad", "proman", "crit intérim", "synergie",
+  "adecco", "manpower", "randstad", "proman", "crit intérim", "crit interim", "synergie",
   "actual", "temporis", "start people", "supplay", "interaction", "triangle",
   "aquila rh", "welljob", "job link", "samsic emploi", "domino rh",
+  // Enseignes locales et cabinets vus dans l'Allier sans NAF (10/09/2026) : ils
+  // postaient des CDI et des CDD pour leurs clients, comptés comme des employeurs.
+  "instan", "optineris", "auvergne emplois", "kali rh", "piment interim", "piment intérim",
+  "mercato de l'emploi", "mercato de l emploi", "winsearch", "achil", "ls developpement", "ls développement",
 ];
 
 /**
- * Offre postée par une agence d'intérim (donc à ne pas porter au crédit de
- * l'entreprise utilisatrice). Le NAF de l'annonceur est le critère fiable :
- * la division 78 est « Activités liées à l'emploi ». Le type de contrat MIS
- * vient en second, les enseignes en dernier recours.
+ * Mots qui, dans une raison sociale, désignent un intermédiaire de l'emploi
+ * plutôt qu'un employeur : « Vichy Interim et Placement », « Cabinet RH Durand ».
+ * Bornés par des frontières de mot pour ne pas attraper « interimaire » dans un
+ * intitulé ni « rh » dans « Rhône ».
+ */
+const MOTS_INTERMEDIAIRE =
+  /\b(int[ée]rim|interim|staffing|recrutement|placement|travail temporaire|ressources humaines|cabinet rh|rh conseil|job)\b/i;
+
+/**
+ * Offre postée par une agence d'intérim ou un intermédiaire de l'emploi (donc à
+ * ne pas porter au crédit de l'entreprise utilisatrice). Le NAF de l'annonceur
+ * est le critère fiable : la division 78 est « Activités liées à l'emploi ». Le
+ * type de contrat MIS vient en second, les enseignes et les mots en dernier
+ * recours. Le rapprochement rattrape ensuite ce que le nom ne dit pas : un
+ * annonceur résolu chez SIRENE avec un NAF 78 est reclassé (derive-offres.ts).
  */
 export function estAgenceInterim(
   codeNAF: string | null | undefined,
@@ -327,7 +342,35 @@ export function estAgenceInterim(
   if (typeContrat === "MIS") return true;
   if (!nom) return false;
   const bas = nom.toLowerCase();
-  return MOTIFS_AGENCES.some((m) => bas.includes(m));
+  if (MOTIFS_AGENCES.some((m) => bas.includes(m))) return true;
+  return MOTS_INTERMEDIAIRE.test(bas);
+}
+
+// ---------------------------------------------------------------------------
+// Fenêtres de lecture
+// ---------------------------------------------------------------------------
+
+/** Plafond de pagination observé côté API (range au-delà de 3000 → rien). */
+const PLAFOND_RANGE = 3000;
+/** Largeur maximale d'une fenêtre de création lue d'un bloc. */
+const FENETRE_JOURS = 30;
+
+/**
+ * Découpe [depuis, jusqua] en fenêtres d'au plus `largeurJours`. Une lecture par
+ * fenêtre : c'est ce qui permet de relire toute la profondeur (90 jours) chaque
+ * jour, donc de voir disparaître une offre — et de la clôturer.
+ */
+export function decouperFenetres(depuis: Date, jusqua: Date, largeurJours = FENETRE_JOURS): [Date, Date][] {
+  const out: [Date, Date][] = [];
+  let debut = depuis.getTime();
+  const fin = jusqua.getTime();
+  const pas = largeurJours * 86400000;
+  while (debut < fin) {
+    const f = Math.min(fin, debut + pas);
+    out.push([new Date(debut), new Date(f)]);
+    debut = f;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -344,36 +387,61 @@ export const francetravailAdapter: SourceAdapter<FtOffreRaw> = {
   async *fetch(params: FetchParams): AsyncIterable<FtOffreRaw> {
     const departement = params.departement ?? "03";
     const jusqua = new Date();
-    const depuis = new Date(jusqua.getTime() - (params.depuisJours ?? 14) * 86400000);
+    const depuis = new Date(jusqua.getTime() - (params.depuisJours ?? 90) * 86400000);
     const jeton = await obtenirJeton();
 
-    let debut = 0;
-    for (;;) {
-      const fin = debut + TAILLE_PAGE - 1;
-      const url =
-        `${URL_RECHERCHE}?departement=${encodeURIComponent(departement)}` +
-        `&minCreationDate=${encodeURIComponent(iso(depuis))}` +
-        `&maxCreationDate=${encodeURIComponent(iso(jusqua))}` +
-        `&range=${debut}-${fin}`;
+    /**
+     * Lit une fenêtre de création. Si la pagination bute sur le plafond de l'API,
+     * la fenêtre est coupée en deux et relue : un gros département ne perd
+     * aucune offre, un petit ne fait pas plus d'appels que nécessaire.
+     */
+    async function* lireFenetre(min: Date, max: Date): AsyncIterable<FtOffreRaw> {
+      let debut = 0;
+      let plafondAtteint = false;
+      const lues: FtOffreRaw[] = [];
+      for (;;) {
+        const fin = debut + TAILLE_PAGE - 1;
+        const url =
+          `${URL_RECHERCHE}?departement=${encodeURIComponent(departement)}` +
+          `&minCreationDate=${encodeURIComponent(iso(min))}` +
+          `&maxCreationDate=${encodeURIComponent(iso(max))}` +
+          `&range=${debut}-${fin}`;
 
-      const brut = await fetchJsonCache("francetravail", url, limiter, {
-        headers: { Authorization: `Bearer ${jeton}`, Accept: "application/json" },
-      });
-      // 204 : plus rien à paginer.
-      if (brut == null) break;
+        const brut = await fetchJsonCache("francetravail", url, limiter, {
+          headers: { Authorization: `Bearer ${jeton}`, Accept: "application/json" },
+        });
+        // 204 : plus rien à paginer.
+        if (brut == null) break;
 
-      const page = reponseSchema.parse(brut);
-      if (page.resultats.length === 0) break;
+        const page = reponseSchema.parse(brut);
+        if (page.resultats.length === 0) break;
 
-      for (const offre of page.resultats) {
-        const parsed = ftOffreSchema.safeParse(offre);
-        if (parsed.success) yield parsed.data;
-        else throw new Error(`[francetravail] réponse inattendue : ${parsed.error.issues[0]?.message}`);
+        for (const offre of page.resultats) {
+          const parsed = ftOffreSchema.safeParse(offre);
+          if (parsed.success) lues.push(parsed.data);
+          else throw new Error(`[francetravail] réponse inattendue : ${parsed.error.issues[0]?.message}`);
+        }
+
+        if (page.resultats.length < TAILLE_PAGE) break;
+        debut += TAILLE_PAGE;
+        if (debut >= PLAFOND_RANGE) {
+          plafondAtteint = true;
+          break;
+        }
       }
 
-      if (page.resultats.length < TAILLE_PAGE) break;
-      debut += TAILLE_PAGE;
-      if (debut > 3000) break; // plafond observé côté API
+      const largeurMs = max.getTime() - min.getTime();
+      if (plafondAtteint && largeurMs > 86400000) {
+        const milieu = new Date(min.getTime() + largeurMs / 2);
+        yield* lireFenetre(min, milieu);
+        yield* lireFenetre(milieu, max);
+        return;
+      }
+      yield* lues;
+    }
+
+    for (const [min, max] of decouperFenetres(depuis, jusqua)) {
+      yield* lireFenetre(min, max);
     }
   },
 

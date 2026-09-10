@@ -4,7 +4,7 @@ Règle absolue du projet : **aucun endpoint n'est utilisé sans avoir été vér
 appel réel.** Ce document fait foi. États possibles : `vérifiée`, `à vérifier`,
 `à autoriser`, `bloquée`, `embarquée`.
 
-Dernière mise à jour : 28 août 2026 (moteur V2).
+Dernière mise à jour : 10 septembre 2026 (moteur V2.1 : entonnoir réparé, INPI, avis BOAMP structurés, DECP au code postal).
 
 ---
 
@@ -21,7 +21,9 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
 - **Réponse vérifiée** : `results[]` avec `siren`, `nom_raison_sociale`,
   `categorie_entreprise`, `date_creation`, `etat_administratif`, `tranche_effectif_salarie`,
   `caractere_employeur` (O/N), `nombre_etablissements_ouverts`,
-  **`finances`** (`{ "2024": { ca, resultat_net }, "2023": … }` — `ca: 0` vaut inconnu),
+  **`finances`** (`{ "2024": { ca, resultat_net } }` — `ca: 0` vaut inconnu ; **un seul
+  exercice par société**, vérifié le 10/09/2026 sur six sociétés : la tendance du CA vient
+  des ratios INPI, voir plus bas),
   **`complements`** (`liste_idcc`, `convention_collective_renseignee`, `egapro_renseignee`,
   `est_rge`, `est_siae`, `est_qualiopi`…), `dirigeants` (**jamais stocké** : personnes
   physiques), et `matching_etablissements[]` (siret, activite_principale, code_postal,
@@ -100,9 +102,26 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
   `src/lib/ingest/derive-offres.ts` (OFFRE_DIRECTE, OFFRE_REPUBLIEE, OFFRE_VELOCITE,
   CDD_COURT_REPETE, OFFRE_REACTUALISEE, OFFRE_MANQUE_CANDIDATS, OFFRE_MULTIPOSTES,
   MISSION_CONCURRENT), chaque signal portant le **lieu de travail** et le **ROME**.
-- **Cold start** : l'API ne renvoie que les offres actives ; `OFFRE_REPUBLIEE` et
-  `OFFRE_VELOCITE` exigent l'observation quotidienne (`.github/workflows/ingestion-quotidienne.yml`).
-  `OFFRE_REACTUALISEE` n'a pas cette limite.
+- **Lecture en fenêtres et clôture** (depuis le 10/09/2026) : l'API ne renvoie que les
+  offres actives, et le `range` plafonne à 3 000. L'adapter relit chaque jour toute la
+  profondeur (90 jours) par fenêtres de création de 30 jours, coupées en deux quand une
+  fenêtre bute sur le plafond ; après une lecture **complète**, une offre de la fenêtre
+  non revue est close (`src/lib/ingest/cloture.ts`). Constat qui a motivé la règle :
+  0 offre close sur 3 175 après quinze jours d'ingestion à 14 jours de profondeur —
+  `OFFRE_REPUBLIEE` était mort et la conjoncture de Tempo muette (biais de collecte).
+- **`offresManqueCandidats` est un drapeau retardé** : France Travail le pose des semaines
+  après la publication (le 10/09, 0 offre de septembre le portait, 92 d'août, 136 de
+  juillet). L'exécuteur mémorise la date où le drapeau a été vu (`payload.manqueCandidatsDepuis`)
+  et le signal se date de là, jamais avant la publication.
+- **Intermédiaires de l'emploi** : outre le NAF 78 et le contrat MIS, une liste d'enseignes
+  et des mots-clés bornés (intérim, placement, recrutement, cabinet RH…) reclassent
+  l'annonceur ; et tout annonceur résolu chez SIRENE avec un NAF 78 est reclassé après
+  coup (Instan, Kali RH, Piment Interim, Le Mercato de l'emploi… postaient des CDI pour
+  leurs clients et passaient pour des employeurs).
+- **Offres anonymes** : 25 % des offres n'ont pas d'employeur (485 sur 1 920). Elles
+  deviennent des `DEMANDE_ANONYME` de bassin (poids 0) : le dénominateur de
+  l'intérimabilité mesurée par métier, jamais un lead.
+- **Cold start résiduel** : `OFFRE_VELOCITE` exige encore quelques semaines d'observation.
 
 ## BOAMP — annonces de marchés publics · **vérifiée** ✅ (V2)
 
@@ -123,10 +142,39 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
 - **Natures sur l'Allier** (tout l'historique) : APPEL_OFFRE 6 982, ATTRIBUTION 2 009,
   RECTIFICATIF 332, PRE-INFORMATION 32. `refine` filtre les tableaux, `where` non ; un
   avis peut lister plusieurs départements ; `titulaire` contient des doublons.
-- **Signaux** : `MARCHE_ATTRIBUE` par titulaire distinct (J+0, montant inconnu → facteur
-  0,6 ; le DECP arrive ensuite avec le montant et le SIRET), `AO_OUVERT` (signal de
-  bassin, poids 0, lu par Tempo ; date limite future ou passée de moins de 30 jours).
-  Métiers induits par le descripteur et l'objet (`reference/metiers.ts`).
+- **Champ `donnees` — VÉRIFIÉ le 10/09/2026** sur des avis réels : l'avis structuré
+  (JSON en chaîne), en **deux formats**. Depuis 2026, la norme européenne **eForms**
+  domine (33 attributions sur 38 sur 90 jours dans l'Allier) : racine
+  `EFORMS.ContractAwardNotice` (ou `ContractNotice`), arbre UBL avec préfixes
+  `cac:`/`cbc:`/`efac:`. Le gagnant se retrouve par la chaîne
+  `efac:NoticeResult/efac:LotResult (cbc:TenderResultCode = selec-w) → efac:LotTender
+  (cac:LegalMonetaryTotal/cbc:PayableAmount = montant) → efac:TenderingParty →
+  efac:Tenderer → efac:Organizations/efac:Organization` (nom, `cbc:PostalZone`,
+  `cbc:CityName`) ; la date d'attribution est `efac:SettledContract/cbc:IssueDate`, le CPV
+  `cac:ProcurementProject/cac:MainCommodityClassification/cbc:ItemClassificationCode`,
+  l'acheteur `cac:ContractingParty/cac:Party/cac:PartyIdentification/cbc:ID` résolu dans
+  le même annuaire. Le `CompanyID` n'est **pas** un SIRET (UUID ou numéro interne).
+  Les nœuds sont tantôt objets, tantôt tableaux à un élément. L'ancien format
+  (`FNSimple`, 5 avis sur 38) reste lu : `ATTRIBUTION.DECISION` (objet **ou tableau**) →
+  `TITULAIRE.{DENOMINATION, ADRESSE, CP, VILLE}`, `RENSEIGNEMENT.MONTANT` (objet
+  `{ "@DEVISE", "#text" }`), `RENSEIGNEMENT.DATE_ATTRIBUTION`, `NUM_LOT` ;
+  `OBJET.CPV.PRINCIPAL` (objet ou tableau) et `OBJET.LOTS.LOT[].CPV` ; `IDENTITE.{CP, VILLE}`
+  de l'acheteur ; `OBJET.LIEU_EXEC_LIVR.{ADRESSE, CODE_NUTS}`. Champs plats `annonce_lie`
+  (idweb de l'appel d'offres auquel répond l'attribution) et `code_departement_prestation`.
+  Exemple lu : *Commentry, maison de santé → trois titulaires à Cusset, Malicorne et
+  Commentry, 37 503 €, 34 122 €, 86 032 €*.
+- **Signaux** : `MARCHE_ATTRIBUE` par titulaire distinct, **avec montant cumulé sur ses
+  lots, CPV, code postal du titulaire** (clé de blocage du rapprochement) et **lieu du
+  besoin** (commune de l'acheteur, géocodée) ; daté de `DATE_ATTRIBUTION` quand elle
+  précède la parution de moins d'un an. Sans avis structuré, repli sur les colonnes
+  plates (nom seul, montant inconnu → 0,6). `AO_OUVERT` (signal de bassin, poids 0, lu
+  par Tempo ; date limite future ou passée de moins de 30 jours).
+  `AO_RENOUVELLEMENT` (anticipation) : pour un appel d'offres ouvert, l'adapter relit
+  les attributions du même acheteur sur six ans (`refine=nature:ATTRIBUTION`,
+  `where=nomacheteur="…"`) ; celles dont l'objet ressemble (trigrammes ≥ 0,35, ou même
+  descripteur et ≥ 0,175) désignent les **titulaires sortants**, chacun recevant un
+  signal à retard dont le pic est la date limite de remise des offres + 60 jours
+  (`payload.picJours`). Métiers induits par le descripteur et l'objet (`reference/metiers.ts`).
 - **Run réel** (Allier, 90 jours, 28/08/2026) : 192 avis lus, 158 signaux — 66
   `MARCHE_ATTRIBUE` (22 rattachés : 11 au référentiel, 11 via SIRENE ; 19 en file de
   résolution ; 25 rejets, surtout des groupes nationaux hors département) et 92 `AO_OUVERT`.
@@ -142,8 +190,15 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
   `acheteur_id`, `titulaire_id_1..3` + `titulaire_typeidentifiant_1..3` (= `"SIRET"`).
 - **Écueil constaté** : le filtre porte sur le **lieu d'exécution** ; 71 titulaires sur 72
   étaient absents du référentiel → enrichissement à la demande (72/72 rattachés).
-- V2 : le signal porte les métiers induits par le CPV. Le lieu d'exécution n'est donné
-  qu'au département (pas de coordonnées) : la distance au besoin vient du BOAMP/offres.
+- **Trois codages du lieu — VÉRIFIÉ le 10/09/2026** : `lieuexecution_typecode` vaut
+  « Code département », « Code postal » ou « Code commune ». Sur l'Allier depuis le
+  1er juin 2026 : **76 marchés au département, 187 au code postal** — le filtre du V2 en
+  perdait 71 %. Clause retenue :
+  `(lieuexecution_code="03" and lieuexecution_typecode="Code département") or
+  (startswith(lieuexecution_code,"03") and lieuexecution_typecode in ("Code postal","Code commune"))`
+  (41 marchés depuis le 1er août). Le code postal ou la commune est géocodé en **lieu du
+  besoin** (`src/lib/ingest/geocode.ts`). Le champ `lieuexecution_nom` n'existe pas.
+- Le signal porte les métiers induits par le CPV.
 - **Clé** : aucune. Adapter : `src/lib/ingest/adapters/decp.ts`.
 
 ## BODACC — annonces civiles et commerciales · **vérifiée** ✅
@@ -194,6 +249,9 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
   `ACCORD_RESTRUCTURATION`. Volume de la semaine du 24/08 : 059 × 150, 052 × 116,
   051 × 62, 055 × 21, 054 × 19, 075 × 7, 079 × 3 — **0 dans l'Allier** : rare, mais
   spécifique.
+- **Date du signal** (depuis le 10/09/2026) : `DATE_TEXTE` (signature), à défaut
+  `DATE_DIFFUSION`, jamais `DATE_EFFET` en premier — un accord à effet au 01/01/2027
+  pesait à plein pendant des mois. La date d'effet reste dans le payload.
 - **Run réel** (livraison du 24/08, `--depuis=7d`) : 86 s téléchargement compris,
   1 469 accords lus, 9 dans la zone (code postal 03 ou SIREN du référentiel), 3 signaux
   (2 surcharge, 1 restructuration), tous rattachés.
@@ -218,6 +276,33 @@ Dernière mise à jour : 28 août 2026 (moteur V2).
   et la composante Strate « potentiel d'embauche » sont prêts.
 - Méthode LBB (publique) : DPAE des 12 derniers mois → potentiel d'embauche à 3 mois,
   1 à 5 étoiles par établissement.
+
+## INPI / BCE — ratios financiers · **vérifiée** ✅ (V2.1)
+
+- **Endpoint vérifié** (appels réels le 10/09/2026) :
+  `GET https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/ratios_inpi_bce/records`
+  `?where=siren in ("502657778","327641346")&select=siren,date_cloture_exercice,chiffre_d_affaires,resultat_net,type_bilan,confidentiality&order_by=siren,date_cloture_exercice desc&limit=100`
+- **Champs vérifiés** : `siren`, `date_cloture_exercice`, `chiffre_d_affaires`,
+  `resultat_net`, `marge_brute`, `ebe`, `ebit`, `taux_d_endettement`, `caf_sur_ca`…,
+  `type_bilan` (C complet, S simplifié, K consolidé), `confidentiality`. Jeu modifié le
+  01/06/2026. TRANSARC AQUILON : neuf exercices 2016-2024 (CA 1,0 M€ → 20,4 M€).
+- **Pourquoi** : l'API Recherche ne renvoie qu'un exercice par société, donc
+  `ca_precedent` restait vide pour les 751 sociétés qui avaient un CA, et ni
+  `CA_CROISSANCE` / `CA_BAISSE` ni le malus « CA en baisse » ne pouvaient se déclencher.
+- **Usage** : interrogé nommément par lots de 40 SIREN (établissements actifs employeurs
+  et entreprises signalées) ; deux derniers exercices, comptes sociaux préférés aux
+  consolidés ; dérive `CA_CROISSANCE` / `CA_BAISSE` (≥ 15 %). Hebdomadaire.
+- **Clé** : aucune. Adapter : `src/lib/ingest/adapters/inpi.ts`, script `npm run ingest:inpi`.
+
+## Découpage administratif (geo.api.gouv.fr) · **vérifiée** ✅ (géocodage)
+
+- **Endpoints vérifiés** (10/09/2026) : `GET https://geo.api.gouv.fr/communes?codePostal=03300&fields=nom,code,centre,population`
+  (plusieurs communes par code postal → la plus peuplée, ou celle dont le nom
+  correspond), `…/communes?nom=Cusset&codeDepartement=03&boost=population`,
+  `…/communes/<code INSEE>`. Un code postal « cedex » ne résout pas : le nom prend le
+  relais, débarrassé de « cedex », « CS », « BP ».
+- **Usage** : lieu du besoin des marchés (commune de l'acheteur au BOAMP, code postal ou
+  commune d'exécution au DECP). Cache disque 30 jours. `src/lib/ingest/geocode.ts`.
 
 ## URSSAF open data · **vérifiée** ✅ (référence)
 
@@ -287,7 +372,10 @@ chemin normal de deux sources sur trois. Module partagé `src/lib/ingest/rapproc
 
 Décisions : ≥ 0,88 rattachement automatique, 0,62-0,88 file de résolution manuelle
 (`/resolution`), en dessous rejet compté. Garde-fou : seules les offres dont le NAF
-appartient aux divisions cibles de l'agence déclenchent un appel réseau.
+appartient aux divisions cibles de l'agence déclenchent un appel réseau. Depuis le
+10/09/2026, les titulaires BOAMP arrivent avec leur **code postal** (avis structuré) :
+le blocage géographique du rapprochement fonctionne enfin pour cette source, et un
+annonceur France Travail résolu sur un NAF 78 est reclassé en agence.
 
 | Mesure (Allier, 2 211 offres sur 90 jours, V0) | Passe locale seule | + résolution SIRENE |
 |---|---|---|

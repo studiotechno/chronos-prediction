@@ -5,14 +5,23 @@
  *   · noyau IMMÉDIAT : K = exp(-ln2 × âge / demi-vie) — le besoin est maintenant ;
  *   · noyau À RETARD : K = max(plancher (décroissant après le pic), log-normale
  *     centrée sur `pic` jours) — un marché attribué ou un permis pèse au moment
- *     où le chantier démarre, pas à la signature.
+ *     où le chantier démarre, pas à la signature. Un signal peut porter son
+ *     propre pic (`payload.picJours`) : un appel d'offres remis en concurrence
+ *     pèse autour de sa date limite, pas à un délai fixe.
+ *
+ * Facteur de BESOIN des signaux d'offres : l'intérimabilité du métier mesurée sur
+ * le bassin (part des annonces de ce ROME qui sont des missions d'intérim), à
+ * défaut l'intensité intérim du secteur. Ni l'un ni l'autre ne dépend de l'agence :
+ * le Sismo dit s'il y a un besoin de main-d'œuvre courte, la servabilité par
+ * l'agence se juge ensuite (engine.ts).
  *
  * Puis : saturation PAR FAMILLE de source (cinq offres d'un même hôpital ne valent
  * pas une offre et un marché), bonus de CORROBORATION quand plusieurs familles
- * convergent, et normalisation logistique recalée (0 contribution → 0).
+ * convergent, bonus de RÉCURRENCE quand plusieurs déclencheurs qualifiants
+ * tombent dans la même fenêtre, et normalisation logistique recalée (0 → 0).
  */
 import { signalTypeLabel } from "./labels";
-import { familleDeType, TYPES_SECTORISES } from "./weights-defaults";
+import { familleDeType, TYPES_QUALIFIANTS, TYPES_SECTORISES } from "./weights-defaults";
 import { trigramSimilarity } from "../matching/trigram";
 import type {
   ScoreComponent,
@@ -30,8 +39,13 @@ const CPV_CIBLES = ["45", "60", "63", "77", "90"];
 
 export type SismoContext = {
   weights: WeightMap;
-  romeCibles: string[];
-  /** Taux de recours à l'intérim du secteur de l'établissement (%) : multiplie les signaux d'offres. */
+  /**
+   * Intérimabilité mesurée des métiers d'un signal : part des annonces du bassin
+   * pour ces ROME qui sont des missions d'intérim (0..1), ou null quand le bassin
+   * n'en a pas assez vu pour le dire.
+   */
+  interimabilite: (romes: string[]) => number | null;
+  /** Taux de recours à l'intérim du secteur de l'établissement (%) : repli quand la mesure se tait. */
   tauxSecteurPct: number;
   now: Date;
 };
@@ -41,12 +55,13 @@ export type Noyau = { valeur: number; picAt: string | null; debut: string | null
 /**
  * Noyau temporel d'un type de signal. Pour un noyau à retard, la fenêtre
  * [debut, fin] est l'intervalle où la log-normale dépasse ~60 % de son pic.
+ * `picJours` (porté par le signal) prime sur le pic du type.
  */
-export function noyau(type: string, occurredAt: string, w: WeightMap, now: Date): Noyau {
+export function noyau(type: string, occurredAt: string, w: WeightMap, now: Date, picJours?: number | null): Noyau {
   const demiVie = w[`sismo.demivie.${type}`];
   const t0 = new Date(occurredAt).getTime();
   const ageJours = Math.max(0, (now.getTime() - t0) / JOUR_MS);
-  const pic = w[`sismo.pic.${type}`];
+  const pic = typeof picJours === "number" && picJours > 0 ? picJours : w[`sismo.pic.${type}`];
 
   if (pic === undefined || !(pic > 0)) {
     return { valeur: Math.exp((-LN2 * ageJours) / demiVie), picAt: null, debut: null, fin: null };
@@ -130,32 +145,44 @@ function romesDe(s: SignalScoringInput): string[] {
   return rome ? [rome] : [];
 }
 
+/**
+ * Facteur de besoin d'un signal d'offre : intérimabilité mesurée du métier sur le
+ * bassin, ramenée à [plancher, 1] par la part de référence ; à défaut, l'intensité
+ * intérim du secteur. Jamais les deux à la fois — les multiplier écrasait tout.
+ */
+export function facteurBesoin(
+  romes: string[],
+  ctx: SismoContext,
+): { valeur: number; origine: "metier" | "secteur"; mesure: number | null } {
+  const w = ctx.weights;
+  const plancher = w["sismo.secteur.plancher"] ?? 0;
+  const mesure = romes.length > 0 ? ctx.interimabilite(romes) : null;
+  if (mesure != null && Number.isFinite(mesure)) {
+    const ref = Math.max(0.01, w["sismo.interimabilite.ref"] ?? 0.3);
+    return { valeur: Math.max(plancher, Math.min(1, mesure / ref)), origine: "metier", mesure };
+  }
+  const secteur = Math.max(plancher, Math.min(1, ctx.tauxSecteurPct / (w["strate.naf.taux_ref"] || 8)));
+  return { valeur: secteur, origine: "secteur", mesure: null };
+}
+
 export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): SismoResult {
   const w = ctx.weights;
   const contributions: SignalContribution[] = [];
   const fenetres: { contribution: number; debut: string; fin: string }[] = [];
-  const facteurSecteur = Math.max(
-    w["sismo.secteur.plancher"] ?? 0,
-    Math.min(1, ctx.tauxSecteurPct / (w["strate.naf.taux_ref"] || 8)),
-  );
 
   for (const s of signals) {
     const poids = w[`sismo.poids.${s.type}`];
     const demiVie = w[`sismo.demivie.${s.type}`];
     if (poids === undefined || demiVie === undefined || poids === 0) continue;
 
-    const k = noyau(s.type, s.occurredAt, w, ctx.now);
+    const picJours = typeof s.payload?.picJours === "number" ? (s.payload.picJours as number) : null;
+    const k = noyau(s.type, s.occurredAt, w, ctx.now, picJours);
     let facteur = 1;
     const romes = romesDe(s);
 
-    // Offres : un métier hors des ROME cibles de l'agence pèse beaucoup moins,
-    // et un secteur à faible recours à l'intérim aussi (le supermarché à 12 offres).
-    if (s.type.startsWith("OFFRE") || s.type === "CDD_COURT_REPETE") {
-      if (romes.length > 0 && !romes.some((r) => ctx.romeCibles.includes(r))) {
-        facteur *= w["sismo.rome_hors_cible"];
-      }
-    }
-    if (TYPES_SECTORISES.has(s.type)) facteur *= facteurSecteur;
+    // Offres : le besoin est-il intérimable ? Mesuré sur le bassin pour ce métier,
+    // à défaut lu sur le secteur (le supermarché à 12 offres).
+    if (TYPES_SECTORISES.has(s.type)) facteur *= facteurBesoin(romes, ctx).valeur;
 
     if (s.type === "OFFRE_MULTIPOSTES") {
       const postes = typeof s.payload?.nombrePostes === "number" ? (s.payload.nombrePostes as number) : 2;
@@ -167,7 +194,7 @@ export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): 
     }
 
     // Marchés publics : pondérés par le montant (inconnu → 0.6) et par le CPV / les métiers induits
-    if (s.type === "MARCHE_ATTRIBUE") {
+    if (s.type === "MARCHE_ATTRIBUE" || s.type === "AO_RENOUVELLEMENT") {
       const montant = typeof s.payload?.montant === "number" ? (s.payload.montant as number) : null;
       facteur *= montant != null ? Math.max(0.2, Math.min(1, montant / w["sismo.marche.montant_ref"])) : 0.6;
       const cpv = typeof s.payload?.cpv === "string" ? (s.payload.cpv as string) : "";
@@ -191,28 +218,48 @@ export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): 
   // Un marché republié par une seconde source ne compte qu'une fois
   dedupliquerMarches(contributions, signals, w);
 
-  // Saturation par famille, puis corroboration
+  // Récurrence, puis saturation par famille, puis corroboration.
+  //   · récurrence : plusieurs déclencheurs qualifiants d'une même famille dans la
+  //     fenêtre (deux offres en manque de candidats ce mois-ci) — appliquée AVANT
+  //     la saturation, pour qu'une famille ne dépasse jamais son plafond ;
+  //   · corroboration : plusieurs familles indépendantes convergent.
   const cap = Math.max(1, w["sismo.famille.cap"] ?? 40);
-  const parFamille = new Map<string, { positif: number; negatif: number }>();
+  const fenetreRecurrence = w["sismo.recurrence.jours"] ?? 30;
+  const bonusRecurrence = w["sismo.recurrence.bonus"] ?? 0;
+  const parFamille = new Map<string, { positif: number; negatif: number; recents: number }>();
   for (const c of contributions) {
     const f = familleDeType(c.type);
-    const acc = parFamille.get(f) ?? { positif: 0, negatif: 0 };
-    if (c.contribution > 0) acc.positif += c.contribution;
-    else acc.negatif += c.contribution;
+    const acc = parFamille.get(f) ?? { positif: 0, negatif: 0, recents: 0 };
+    if (c.contribution > 0) {
+      acc.positif += c.contribution;
+      if (
+        TYPES_QUALIFIANTS.has(c.type) &&
+        (ctx.now.getTime() - new Date(c.occurredAt).getTime()) / JOUR_MS <= fenetreRecurrence
+      ) {
+        acc.recents++;
+      }
+    } else acc.negatif += c.contribution;
     parFamille.set(f, acc);
   }
   let positifs = 0;
+  let positifsSansRecurrence = 0;
   let negatifs = 0;
   let famillesPositives = 0;
+  let recents = 0;
   for (const acc of parFamille.values()) {
     if (acc.positif > 0) {
-      positifs += cap * (1 - Math.exp(-acc.positif / cap));
+      const supplementaires = Math.min(3, Math.max(0, acc.recents - 1));
+      const facteurRecurrence = 1 + bonusRecurrence * supplementaires;
+      positifs += cap * (1 - Math.exp((-acc.positif * facteurRecurrence) / cap));
+      positifsSansRecurrence += cap * (1 - Math.exp(-acc.positif / cap));
       famillesPositives++;
+      recents += acc.recents;
     }
     negatifs += acc.negatif;
   }
   const bonus = w["sismo.corroboration.bonus"] ?? 0;
-  const sommeBrute = positifs * (1 + bonus * Math.max(0, famillesPositives - 1)) + negatifs;
+  const facteurCorroboration = 1 + bonus * Math.max(0, famillesPositives - 1);
+  const sommeBrute = positifs * facteurCorroboration + negatifs;
   const score = normalisationLogistique(sommeBrute, w);
 
   // Agrégation par type pour les barres de décomposition
@@ -235,6 +282,15 @@ export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): 
       detailFr: `${famillesPositives} familles de sources convergent`,
     });
   }
+  const apportRecurrence = (positifs - positifsSansRecurrence) * facteurCorroboration;
+  if (apportRecurrence > 0.005) {
+    components.push({
+      key: "recurrence",
+      labelFr: "Récurrence",
+      contribution: round2(apportRecurrence),
+      detailFr: `${recents} déclencheurs en ${fenetreRecurrence} jours`,
+    });
+  }
 
   // Fenêtre d'appel : celle du signal à retard le plus contributif encore à venir
   const fenetre = fenetres.sort((a, b) => b.contribution - a.contribution)[0] ?? null;
@@ -249,6 +305,8 @@ export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): 
     for (const r of romesDe(s)) if (!romesInduits.includes(r)) romesInduits.push(r);
   }
 
+  const aDeclencheurQualifiant = contributions.some((c) => c.contribution > 0 && TYPES_QUALIFIANTS.has(c.type));
+
   return {
     score,
     sommeBrute: round2(sommeBrute),
@@ -256,6 +314,7 @@ export function computeSismo(signals: SignalScoringInput[], ctx: SismoContext): 
     contributions,
     fenetre: fenetre ? { debut: fenetre.debut, fin: fenetre.fin } : null,
     romesInduits,
+    aDeclencheurQualifiant,
   };
 }
 

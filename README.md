@@ -15,10 +15,13 @@ Trois composantes, un lead chaud à leur intersection :
   d'affaires → caractère employeur), santé sur comptes déposés, site industriel,
   proximité **du besoin** (le chantier, pas le siège). Change lentement.
 - **Sismo** (0-100, ambre) : les déclencheurs datés — offres réactualisées ou en manque
-  de candidats, marchés attribués, accords d'heures supplémentaires, capital… — chacun
-  avec son horloge : décroissance exponentielle pour l'immédiat, **noyau à retard**
-  pour un marché ou un permis dont le chantier démarre plus tard. Saturation par famille
-  de source et bonus de **corroboration**. Change tous les jours.
+  de candidats, marchés attribués ou remis en concurrence, ouvertures de sites, accords
+  d'heures supplémentaires… — chacun avec son horloge : décroissance exponentielle pour
+  l'immédiat, **noyau à retard** pour un marché ou un permis dont le chantier démarre
+  plus tard. Les offres sont pondérées par l'**intérimabilité mesurée** de leur métier
+  sur le bassin. Récurrence, saturation par famille de source, **corroboration**. Un
+  lead exige un **déclencheur qualifiant** ; la **servabilité** par l'agence se juge
+  ensuite. Change tous les jours.
 - **Tempo** (facteur autour de 1) : le *quand* — saison du secteur, difficulté de
   recrutement du département (BMO), conjoncture locale, **fenêtre d'appel**.
 - **Score final** = 100 × (Strate/100)^α × (Sismo/100)^β × Tempo^γ. Multiplicatif : un
@@ -56,13 +59,14 @@ Prérequis : Node 20+ (testé sous Node 22).
 | `npm run score` | recalcule Strate, Sismo, Tempo, la table `lead` et le snapshot du jour |
 | `npm run test` | Vitest — scoring pur, Tempo, références, raisons, rapprochement, parsing des sources |
 | `npm run ingest:sirene` | référentiel du bassin, finances et conventions collectives comprises (sans clé) |
-| `npm run ingest:offres` | offres France Travail — **clé requise**, puis rapprochement et dérivation |
-| `npm run ingest:boamp` | avis d'attribution et appels d'offres ouverts (sans clé) |
-| `npm run ingest:decp` | marchés publics attribués avec montant et SIRET (sans clé) |
+| `npm run ingest:offres` | offres France Travail sur 90 jours — **clé requise** — clôture des disparues, rapprochement, dérivation |
+| `npm run ingest:boamp` | attributions (titulaire, montant, code postal, lieu), appels d'offres ouverts, marchés remis en concurrence (sans clé) |
+| `npm run ingest:decp` | marchés publics attribués avec montant, SIRET et lieu d'exécution au code postal (sans clé) |
 | `npm run ingest:bodacc` | procédures collectives + capital, SIREN enrichis à la demande (sans clé) |
 | `npm run ingest:georisques` | sites industriels classés autour de l'agence (sans clé) |
 | `npm run ingest:acco` | accords d'entreprise de la semaine, filtrés sur le département (sans clé, ~400 Mo) |
 | `npm run ingest:all` | toutes les sources ci-dessus, dans l'ordre |
+| `npm run ingest:inpi` | comptes annuels INPI / BCE, plusieurs exercices : tendance du chiffre d'affaires (sans clé) |
 | `npm run ingest:lbb` | potentiel d'embauche La Bonne Boîte — endpoint à confirmer (voir docs/sources.md) |
 | `npm run backtest` | précision@20 et lift sur étiquette proxy, dès que 60 jours de snapshots existent |
 | `npx tsx scripts/reparer-metiers.ts` | recalcule les métiers induits des marchés déjà en base après une correction de règle (simulation par défaut, `--appliquer` pour écrire) |
@@ -82,11 +86,17 @@ Les réponses brutes des API sont mises en cache dans `.cache/` (TTL 24 h,
 ## Faire tourner le moteur tous les jours
 
 La valeur de l'outil s'accumule avec l'observation : les dérivées d'offres
-(republication, vélocité) n'existent qu'en comparant les jours, et l'historique des
-scores (`score_snapshot`) est la matière du backtest et des tendances.
-`.github/workflows/ingestion-quotidienne.yml` lance `db:migrate`, `ingest:all` et
-`score` chaque jour à 04:30 UTC ; il suffit de renseigner les secrets `DATABASE_URL`,
-`FRANCETRAVAIL_CLIENT_ID` et `FRANCETRAVAIL_CLIENT_SECRET` dans le dépôt.
+(republication, clôture, vélocité) n'existent qu'en comparant les jours, et l'historique
+des scores (`score_snapshot`) est la matière du backtest et des tendances. Deux workflows
+GitHub Actions s'en chargent, avec les secrets `DATABASE_URL`, `FRANCETRAVAIL_CLIENT_ID`
+et `FRANCETRAVAIL_CLIENT_SECRET` :
+
+- `ingestion-quotidienne.yml`, 04:30 UTC : offres (90 jours, clôture), BOAMP, DECP,
+  BODACC, ACCO, puis scoring — chaque source dans son pas, le scoring tourne même si une
+  source échoue ;
+- `referentiel-hebdomadaire.yml`, dimanche 02:00 UTC : SIRENE, Géorisques, INPI, puis
+  scoring. SIRENE prend près de deux heures : dans la boucle quotidienne, il faisait
+  dépasser le délai et annuler onze exécutions sur treize.
 
 ## Obtenir les clés
 
@@ -121,9 +131,25 @@ npm run db:migrate
 ```
 
 **Aucune autre clé n'est nécessaire** pour la démo, ni pour SIRENE, BOAMP, DECP, BODACC,
-Géorisques et ACCO.
+Géorisques, ACCO, INPI et le géocodage des communes.
 
-### France Travail — API Offres d'emploi v2 (la seule clé du projet)
+### Supabase Auth — connexion à l'application
+
+L'application est protégée par une session Supabase Auth (page `/connexion`) ; seuls les
+comptes rattachés à l'agence (`agence.auth_user_id`) peuvent entrer. Trois variables,
+gabarit commenté dans `.env.example`, section « Supabase Auth » :
+
+| Variable | Rôle | Où la trouver |
+|---|---|---|
+| `SUPABASE_URL` | URL du projet Supabase | *Project settings → API* |
+| `SUPABASE_PUBLISHABLE_KEY` | clé « publishable », lue côté serveur uniquement (pas de préfixe `NEXT_PUBLIC_`) | *Project settings → API keys* |
+| `SUPABASE_SECRET_KEY` | clé « secret » (service role), utilisée **uniquement** par `npm run compte` en local pour rattacher un compte à l'agence ; jamais déployée | *Project settings → API keys* |
+
+Sans `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` dans `.env`, `npm run dev` renvoie
+sur `/connexion` sans pouvoir entrer. Les scripts d'ingestion et de scoring n'en ont pas
+besoin.
+
+### France Travail — API Offres d'emploi v2 (la seule clé des sources)
 
 1. Créer un compte sur <https://francetravail.io>.
 2. Créer une application, puis souscrire à l'API « Offres d'emploi v2 » (et « La Bonne
@@ -184,7 +210,8 @@ src/lib/
                  métiers induits (descripteur BOAMP / CPV / permis → ROME), tranches INSEE, libellés
   ingest/        interface SourceAdapter, exécuteur idempotent (rafraîchit les offres revues,
                  dérive EFFECTIF_UP et CA_*), rapprocheur partagé (enseignes + SIRENE),
-                 adapters : sirene, francetravail, boamp, decp, bodacc, georisques, acco, labonneboite
+                 adapters : sirene, francetravail, boamp, decp, bodacc, georisques, acco, inpi, labonneboite ;
+                 geocode (communes), cloture (offres disparues)
   matching/      normalisation, Jaro-Winkler + trigrammes, blocage CP, seuils 0.62/0.88
   fixtures/      générateur déterministe du bassin de démo — Vichy, Allier
   couverture/    agrégats de la carte de couverture ; leads/ filtres ; geo/ recherche de commune
@@ -211,11 +238,13 @@ Principes tenus :
 ## Limites connues
 
 - **Cold start des dérivées d'offres** : `OFFRE_REPUBLIEE` et `OFFRE_VELOCITE` exigent
-  l'observation quotidienne. `OFFRE_REACTUALISEE` (date d'actualisation publiée par
-  France Travail) le contourne en partie. **Lancer le cron dès maintenant.**
+  l'observation quotidienne — la lecture sur 90 jours et la clôture des offres disparues
+  la rendent possible, il faut des semaines de cron. **Lancer le cron dès maintenant.**
 - **Le rapprochement d'entité reste le facteur limitant** : ni France Travail ni le BOAMP
-  ne publient de SIRET. Les enseignes indexées et la tranche d'effectif propagée depuis
-  les offres améliorent le rappel ; les mesures à jour sont sur `/ingestion`.
+  ne publient de SIRET, et un quart des offres ne nomment pas l'employeur. Les enseignes
+  indexées, le code postal du titulaire au BOAMP, le reclassement des intermédiaires de
+  l'emploi et la tranche d'effectif propagée améliorent le rappel ; les mesures à jour
+  sont sur `/ingestion`.
 - **La Bonne Boîte v2** : le jeton est délivré mais l'endpoint répond 403 sur tous les
   chemins essayés ; l'adapter attend le chemin exact (`LBB_ENDPOINT`).
 - **Sitadel** (permis de construire) : le moteur sait scorer `PERMIS_LOCAUX`, l'adapter
@@ -223,5 +252,6 @@ Principes tenus :
 - **Tables sectorielles approximées** (IDCC, NAF, saisonnalité) — ancrées sur les taux
   réels DARES par grand secteur, ventilations à remplacer ; voir docs/sources.md.
 - **Poids réglés, pas encore appris** : `crm_outcome` et `score_snapshot` se remplissent
-  d'abord ; la réestimation viendra avec les premières conversions.
+  d'abord ; la réestimation viendra avec les premières conversions. Le seuil « chaud »
+  reste absolu en attendant.
 - **Mono-agence** : les scores sont calculés pour la première agence de la table `agence`.

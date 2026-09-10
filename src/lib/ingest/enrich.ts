@@ -20,6 +20,7 @@ import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
 import { fetchJsonCache, RateLimiter } from "./http";
+import { fusionFinancesSql } from "./run";
 import { INCLUDE, normaliserResultat, sireneResultSchema, type SireneRaw } from "./adapters/sirene";
 import type { CandidatEtab } from "../matching/match";
 import type { EntrepriseRecord, EtablissementFields } from "./types";
@@ -64,11 +65,7 @@ async function ecrire(
         etat: entreprise.etat,
         caractereEmployeur: entreprise.caractereEmployeur ?? null,
         nbEtabsOuverts: entreprise.nbEtabsOuverts ?? null,
-        caAnnee: entreprise.caAnnee ?? null,
-        ca: entreprise.ca ?? null,
-        caPrecedent: entreprise.caPrecedent ?? null,
-        resultatNet: entreprise.resultatNet ?? null,
-        resultatNetPrecedent: entreprise.resultatNetPrecedent ?? null,
+        ...fusionFinancesSql(),
         idcc: entreprise.idcc ?? null,
         complements: entreprise.complements ?? null,
       },

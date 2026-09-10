@@ -51,7 +51,10 @@ export type AgenceScoringInput = {
   lat: number;
   lon: number;
   rayonKm: number;
+  /** Métiers que l'agence place : la servabilité d'un lead se juge dessus, pas son besoin. */
   romeCibles: string[];
+  /** Divisions (2 chiffres) ou codes NAF complets que l'agence travaille. Vide = tous. */
+  nafCibles: string[];
   /** Divisions (2 chiffres) ou codes NAF complets exclus du scoring. */
   nafExclus: string[];
 };
@@ -94,6 +97,8 @@ export type SismoResult = {
   fenetre: { debut: string; fin: string } | null;
   /** Métiers ROME induits par les signaux positifs, du plus contributif au moins. */
   romesInduits: string[];
+  /** Au moins un déclencheur qualifiant contribue positivement (voir TYPES_QUALIFIANTS). */
+  aDeclencheurQualifiant: boolean;
 };
 
 export type TempoResult = {
@@ -109,6 +114,11 @@ export type LeadResult = {
   sismo: number;
   tempo: number;
   segment: "chaud" | "nurturing";
+  /**
+   * L'agence peut-elle servir ce besoin : secteur dans ses cibles NAF ou métier
+   * induit dans ses ROME. Un besoin réel hors de son offre reste tiède.
+   */
+  servable: boolean;
   raisonFr: string;
   propositionFr: string | null;
   fenetre: { debut: string; fin: string } | null;

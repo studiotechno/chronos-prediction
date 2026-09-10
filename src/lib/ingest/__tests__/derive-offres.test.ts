@@ -159,3 +159,39 @@ describe("dérivées historiques inchangées", () => {
     expect(velo.romes).toEqual(["F1703"]);
   });
 });
+
+describe("dates d'observation et offres anonymes", () => {
+  it("un manque de candidats se date au jour où le drapeau a été vu, jamais avant la publication", () => {
+    const vu = joursAvant(3);
+    const signaux = deriveSignaux(
+      [offre({ id: "a", manqueCandidats: 1, payload: { codeNAF: "43.99C", manqueCandidatsDepuis: vu } })],
+      NOW,
+    );
+    const manque = signaux.find((s) => s.type === "OFFRE_MANQUE_CANDIDATS")!;
+    expect(manque.occurredAt).toBe(vu);
+    expect(manque.payload.datePublication).toBe(joursAvant(10));
+
+    // Sans date de drapeau : la première lecture ; si elle précède la publication, la publication
+    const premiere = deriveSignaux([offre({ id: "b", manqueCandidats: 1, firstSeenAt: joursAvant(5) })], NOW);
+    expect(premiere.find((s) => s.type === "OFFRE_MANQUE_CANDIDATS")!.occurredAt).toBe(joursAvant(5));
+    const avant = deriveSignaux([offre({ id: "c", manqueCandidats: 1, firstSeenAt: joursAvant(30) })], NOW);
+    expect(avant.find((s) => s.type === "OFFRE_MANQUE_CANDIDATS")!.occurredAt).toBe(joursAvant(10));
+  });
+
+  it("une offre sans employeur nommé devient une DEMANDE_ANONYME de bassin, sans SIRET", () => {
+    const signaux = deriveSignaux([offre({ id: "a", siret: null, entrepriseNom: null, manqueCandidats: 1 })], NOW);
+    expect(types(signaux)).toEqual(["DEMANDE_ANONYME"]);
+    const s = signaux[0];
+    expect(s.siret).toBeNull();
+    expect(s.rawRef).toBe("anonyme-a");
+    expect(s.romes).toEqual(["F1703"]);
+    expect(s.payload.manqueCandidats).toBe(true);
+    expect(s.lieu?.libelle).toBe("Vichy");
+    // nommée mais non rattachée : ni anonyme, ni directe — elle attend le rapprochement
+    expect(deriveSignaux([offre({ id: "b", siret: null })], NOW)).toHaveLength(0);
+    // postée par une agence : mission concurrente, pas demande anonyme
+    expect(types(deriveSignaux([offre({ id: "c", siret: null, entrepriseNom: null, parAgenceInterim: 1 })], NOW))).toEqual([
+      "MISSION_CONCURRENT",
+    ]);
+  });
+});

@@ -15,7 +15,7 @@
  * ce cold start : la source publie `dateActualisation`, et une offre non
  * pourvue est réactualisée par l'employeur. Voir docs/sources.md.
  */
-import { eq, notLike } from "drizzle-orm";
+import { eq, notLike, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import crypto from "node:crypto";
 import * as schema from "../db/schema";
@@ -45,7 +45,9 @@ export type OffreLike = {
   manqueCandidats?: number | null;
   trancheEffectifEtab?: string | null;
   closedAt: string | null;
-  /** Métadonnées de la source (codeNAF, romeLibelle) — jamais de donnée personnelle. */
+  /** Première lecture de l'offre par le projet : date d'observation par défaut. */
+  firstSeenAt?: string | null;
+  /** Métadonnées de la source (codeNAF, romeLibelle, manqueCandidatsDepuis) — jamais de donnée personnelle. */
   payload?: Record<string, unknown> | null;
 };
 
@@ -59,6 +61,8 @@ export type RapprochementStats = {
   horsCible: number;
   /** Tranches d'effectif publiées par France Travail propagées à des établissements qui n'en avaient pas. */
   tranchesPropagees: number;
+  /** Annonceurs résolus chez SIRENE avec un NAF 78 : reclassés en agences, pas en employeurs. */
+  agencesDetectees: number;
 };
 
 export type SignalDraft = {
@@ -139,6 +143,37 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
     });
   }
 
+  // ---------------------------------------------------------------- DEMANDE_ANONYME
+  // Un quart des offres ne nomment pas l'employeur : impossible à rattacher, mais
+  // elles disent quel métier se recrute où. Signal de bassin, siret nul, poids 0 —
+  // le dénominateur de l'intérimabilité mesurée.
+  for (const o of offres) {
+    if (o.parAgenceInterim === 1 || o.siret || o.entrepriseNom) continue;
+    if (ageJours(o.datePublication) > 90) continue;
+    signaux.push({
+      siret: null,
+      siren: null,
+      type: "DEMANDE_ANONYME",
+      source: "francetravail",
+      occurredAt: o.datePublication,
+      confidence: 1,
+      payload: {
+        offreId: o.id,
+        intitule: o.intitule,
+        rome: o.rome,
+        romeLibelle: romeLibelleDe(o),
+        commune: o.commune,
+        codePostal: o.codePostal,
+        typeContrat: o.typeContrat,
+        codeNAF: (o.payload as { codeNAF?: string | null } | null)?.codeNAF ?? null,
+        manqueCandidats: o.manqueCandidats === 1,
+      },
+      rawRef: `anonyme-${o.id}`,
+      lieu: lieuDe(o),
+      romes: romesDe(o),
+    });
+  }
+
   // Le reste ne concerne que les offres d'entreprises (pas d'agences) rattachées à un SIRET.
   const directes = offres.filter((o) => o.parAgenceInterim !== 1 && o.siret);
   const parSiret = new Map<string, OffreLike[]>();
@@ -165,13 +200,25 @@ export function deriveSignaux(offres: OffreLike[], now: Date): SignalDraft[] {
       });
 
       // ------------------------------------------------------------ OFFRE_MANQUE_CANDIDATS
-      // France Travail lui-même signale l'offre comme difficile à pourvoir.
+      // France Travail lui-même signale l'offre comme difficile à pourvoir — mais il
+      // pose ce drapeau des semaines après la publication. Le signal se date au jour
+      // où le drapeau a été VU (manqueCandidatsDepuis, à défaut la première lecture),
+      // jamais avant la publication.
       if (o.manqueCandidats === 1) {
+        const vu = (o.payload as { manqueCandidatsDepuis?: string | null } | null)?.manqueCandidatsDepuis ?? o.firstSeenAt ?? null;
+        const occurredAt = vu && vu > o.datePublication ? vu : o.datePublication;
         signaux.push({
           ...base,
           type: "OFFRE_MANQUE_CANDIDATS",
-          occurredAt: o.datePublication,
-          payload: { offreId: o.id, intitule: o.intitule, rome: o.rome, romeLibelle: romeLibelleDe(o), typeContrat: o.typeContrat },
+          occurredAt,
+          payload: {
+            offreId: o.id,
+            intitule: o.intitule,
+            rome: o.rome,
+            romeLibelle: romeLibelleDe(o),
+            typeContrat: o.typeContrat,
+            datePublication: o.datePublication,
+          },
           rawRef: `manque-${o.id}`,
         });
       }
@@ -370,6 +417,7 @@ async function rapprocherOffresSansSiret(
     rejets: 0,
     horsCible: 0,
     tranchesPropagees: 0,
+    agencesDetectees: 0,
   };
 
   const aTraiter = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret && o.entrepriseNom);
@@ -382,9 +430,34 @@ async function rapprocherOffresSansSiret(
 
   const nowIso = now.toISOString();
 
+  const nafParSiret = new Map<string, string>();
+  const nafDe = async (siret: string): Promise<string | null> => {
+    if (nafParSiret.has(siret)) return nafParSiret.get(siret)!;
+    const e = (
+      await db.select({ naf: schema.etablissement.naf }).from(schema.etablissement).where(eq(schema.etablissement.siret, siret))
+    )[0];
+    if (!e) return null;
+    nafParSiret.set(siret, e.naf);
+    return e.naf;
+  };
+
+  /**
+   * Rattache l'offre à son SIRET. Si l'établissement résolu est un intermédiaire de
+   * l'emploi (NAF 78), l'offre est reclassée « agence » : Instan, Kali RH ou Piment
+   * Interim postaient des CDI pour leurs clients et passaient pour des employeurs.
+   */
   const rattacher = async (o: (typeof schema.offreBrute.$inferSelect), siret: string) => {
-    await db.update(schema.offreBrute).set({ siret }).where(eq(schema.offreBrute.id, o.id));
+    const naf = await nafDe(siret);
+    const agence = !!naf && naf.replace(/[^0-9]/g, "").startsWith("78");
+    await db
+      .update(schema.offreBrute)
+      .set({ siret, ...(agence ? { parAgenceInterim: 1 } : {}) })
+      .where(eq(schema.offreBrute.id, o.id));
     o.siret = siret; // la dérivation qui suit en profite immédiatement
+    if (agence) {
+      o.parAgenceInterim = 1;
+      stats.agencesDetectees++;
+    }
   };
 
   const mettreEnFile = async (
@@ -508,8 +581,18 @@ async function rapprocherOffresSansSiret(
     }
   }
 
-  // Les offres déjà rattachées (import précédent) peuvent aussi apporter une tranche.
-  for (const o of rattachees) await propagerTranche(o);
+  // Les offres déjà rattachées (import précédent) peuvent aussi apporter une tranche,
+  // et celles rattachées à un intermédiaire de l'emploi avant cette règle sont reclassées.
+  for (const o of rattachees) {
+    const naf = await nafDe(o.siret!);
+    if (naf && naf.replace(/[^0-9]/g, "").startsWith("78")) {
+      await db.update(schema.offreBrute).set({ parAgenceInterim: 1 }).where(eq(schema.offreBrute.id, o.id));
+      o.parAgenceInterim = 1;
+      stats.agencesDetectees++;
+      continue;
+    }
+    await propagerTranche(o);
+  }
 
   return stats;
 }
@@ -550,23 +633,37 @@ export async function deriveEtEnregistrer(
       manqueCandidats: o.manqueCandidats,
       trancheEffectifEtab: o.trancheEffectifEtab,
       closedAt: o.closedAt,
+      firstSeenAt: o.firstSeenAt,
       payload: o.payload,
     })),
     now,
   );
 
   const nowIso = now.toISOString();
-  // Insertion par lots : `returning` compte ce qui a réellement été écrit,
-  // ON CONFLICT DO NOTHING ne renvoyant rien pour les doublons.
+  // Insertion par lots. Un signal dérivé déjà en base est RAFRAÎCHI (date, payload,
+  // lieu, métiers) : sa date d'observation ou son nombre d'actualisations peuvent
+  // avoir changé, et une correction de règle doit se propager sans ré-ingestion.
+  // `xmax = 0` distingue une insertion d'une mise à jour dans le `returning`.
   let inseres = 0;
   const aInserer = signaux.map((s) => ({ id: crypto.randomUUID(), ingestedAt: nowIso, ...s }));
   for (const paquet of chunk(aInserer)) {
     const ecrits = await db
       .insert(schema.signal)
       .values(paquet)
-      .onConflictDoNothing()
-      .returning({ id: schema.signal.id });
-    inseres += ecrits.length;
+      .onConflictDoUpdate({
+        target: [schema.signal.source, schema.signal.rawRef],
+        set: {
+          occurredAt: sql`excluded.occurred_at`,
+          payload: sql`excluded.payload`,
+          lieu: sql`excluded.lieu`,
+          romes: sql`excluded.romes`,
+          confidence: sql`excluded.confidence`,
+          siret: sql`coalesce(excluded.siret, ${schema.signal.siret})`,
+          siren: sql`coalesce(excluded.siren, ${schema.signal.siren})`,
+        },
+      })
+      .returning({ id: schema.signal.id, nouveau: sql<boolean>`(xmax = 0)` });
+    inseres += ecrits.filter((e) => e.nouveau).length;
   }
 
   const sansSiret = offres.filter((o) => o.parAgenceInterim !== 1 && !o.siret).length;

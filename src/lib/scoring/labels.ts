@@ -18,6 +18,9 @@ export const SIGNAL_TYPE_LABELS: Record<string, string> = {
   ACCORD_SURCHARGE: "Accord de surcharge",
   ACCORD_RESTRUCTURATION: "Accord de restructuration",
   PERMIS_LOCAUX: "Permis de construire",
+  ETAB_NOUVEAU: "Ouverture d'établissement",
+  AO_RENOUVELLEMENT: "Marché remis en concurrence",
+  DEMANDE_ANONYME: "Offre directe anonyme",
 };
 
 export function signalTypeLabel(type: string): string {

@@ -90,6 +90,15 @@ export const SOURCES: SourceMeta[] = [
       "Le jeton est délivré avec le scope api_labonneboitev2 mais l'API répond « Invalid scope » : l'accès est conditionné à une autorisation manuelle de France Travail sur l'application.",
   },
   {
+    id: "inpi",
+    nomFr: "INPI / BCE — Ratios financiers",
+    descriptionFr:
+      "Comptes annuels déposés au greffe, plusieurs exercices par entreprise : chiffre d'affaires et résultat des deux derniers exercices, tendance du CA (CA_CROISSANCE / CA_BAISSE). L'API Recherche d'entreprises n'en publie qu'un.",
+    sansCle: true,
+    etatEndpoint: "verifie",
+    notesFr: "Interrogé nommément par lots de SIREN (établissements actifs employeurs et entreprises signalées).",
+  },
+  {
     id: "urssaf",
     nomFr: "URSSAF — Effectifs par commune × APE",
     descriptionFr:
