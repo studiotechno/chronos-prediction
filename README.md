@@ -141,13 +141,16 @@ gabarit commenté dans `.env.example`, section « Supabase Auth » :
 
 | Variable | Rôle | Où la trouver |
 |---|---|---|
-| `SUPABASE_URL` | URL du projet Supabase | *Project settings → API* |
-| `SUPABASE_PUBLISHABLE_KEY` | clé « publishable », lue côté serveur uniquement (pas de préfixe `NEXT_PUBLIC_`) | *Project settings → API keys* |
-| `SUPABASE_SECRET_KEY` | clé « secret » (service role), utilisée **uniquement** par `npm run compte` en local pour rattacher un compte à l'agence ; jamais déployée | *Project settings → API keys* |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase | *Project settings → API* |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | clé « publishable ». La connexion se fait depuis le navigateur, la clé est donc dans le bundle client : sans risque, les tables créées par Drizzle n'accordent rien aux rôles `anon` et `authenticated` (vérifié : « permission denied » sur `lead`, `entreprise`, `etablissement`, `agence`, `signal`, `weights`) | *Project settings → API keys* |
+| `SUPABASE_SERVICE_ROLE_KEY` | clé de service, utilisée **uniquement** par `npm run compte` en local pour rattacher un compte à l'agence ; jamais déployée, la production ne peut ni créer ni supprimer de compte | *Project settings → API keys* |
 
-Sans `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` dans `.env`, `npm run dev` renvoie
-sur `/connexion` sans pouvoir entrer. Les scripts d'ingestion et de scoring n'en ont pas
-besoin.
+Sans les deux variables `NEXT_PUBLIC_*` dans `.env`, `npm run dev` renvoie sur
+`/connexion` sans pouvoir entrer. Après les avoir ajoutées, **supprimer `.next`** avant
+de relancer : un middleware servi depuis un cache obsolète ouvre l'application sans
+authentification. Supabase limite le débit du point d'entrée de connexion (HTTP 429) :
+ne pas enchaîner les essais. Les scripts d'ingestion et de scoring n'ont pas besoin de
+ces variables.
 
 ### France Travail — API Offres d'emploi v2 (la seule clé des sources)
 
