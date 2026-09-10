@@ -10,7 +10,12 @@ import { createClient } from "@/lib/supabase/server";
  */
 async function deconnecter(request: NextRequest) {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+
+  // Portée locale, et non globale (le défaut de supabase-js) : se déconnecter
+  // ici ne doit pas révoquer les sessions des autres appareils. Le défaut
+  // global fait qu'une déconnexion sur un poste éjecte tous les autres au
+  // rafraîchissement suivant — un symptôme illisible pour qui le subit.
+  await supabase.auth.signOut({ scope: "local" });
 
   const url = request.nextUrl.clone();
   url.pathname = "/connexion";

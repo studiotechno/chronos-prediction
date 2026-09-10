@@ -39,9 +39,19 @@ export function FormulaireConnexion({
     });
 
     if (error) {
-      // Message unique quel que soit le refus : distinguer « email inconnu »
-      // de « mot de passe faux » dirait à un inconnu quelles adresses existent.
-      setErreur("Email ou mot de passe incorrect.");
+      // Un refus d'identifiants garde un message unique : distinguer « email
+      // inconnu » de « mot de passe faux » dirait à un inconnu quelles adresses
+      // existent. Les autres refus, eux, doivent se dire — un « mot de passe
+      // incorrect » affiché alors que Supabase limite le débit envoie chercher
+      // le problème exactement là où il n'est pas.
+      const limite = error.status === 429 || error.code === "over_request_rate_limit";
+      setErreur(
+        limite
+          ? "Trop de tentatives de connexion. Patientez une minute avant de réessayer."
+          : error.code === "invalid_credentials" || error.status === 400
+            ? "Email ou mot de passe incorrect."
+            : `Connexion impossible (${error.code ?? error.status ?? "erreur"}). Réessayez.`,
+      );
       setEnCours(false);
       return;
     }
