@@ -1,5 +1,5 @@
 /**
- * Lecture de l'utilisateur connecté et garde d'accès.
+ * Lecture de l'utilisateur connecté et gardes d'accès.
  *
  * Toujours `getUser()`, jamais `getSession()` : `getSession()` se contente de
  * décoder le cookie, qu'un client peut fabriquer, tandis que `getUser()` fait
@@ -8,10 +8,11 @@
  */
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
-import { clientServeur } from "@/lib/auth/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { getAgence } from "@/lib/queries";
 
 export async function lireUtilisateur(): Promise<User | null> {
-  const supabase = await clientServeur();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error) return null;
   return data.user ?? null;
@@ -26,5 +27,25 @@ export async function lireUtilisateur(): Promise<User | null> {
 export async function exigerUtilisateur(): Promise<User> {
   const utilisateur = await lireUtilisateur();
   if (!utilisateur) redirect("/connexion");
+  return utilisateur;
+}
+
+/**
+ * Garde forte : un compte Supabase valide ne suffit pas, il doit être celui de
+ * l'agence. Ce projet Supabase est partagé avec un autre produit et contient
+ * des comptes qui n'ont rien à faire ici ; sans cette vérification, ils
+ * entreraient dans les leads.
+ *
+ * En cas d'écart, on passe par /auth/signout : un Server Component ne peut pas
+ * écrire de cookie, donc pas fermer la session lui-même — et rediriger vers
+ * /connexion en gardant la session tournerait en boucle.
+ */
+export async function exigerCompteAgence(): Promise<User> {
+  const utilisateur = await exigerUtilisateur();
+  const agence = await getAgence();
+
+  if (agence?.authUserId && agence.authUserId !== utilisateur.id) {
+    redirect("/auth/signout?raison=compte-non-rattache");
+  }
   return utilisateur;
 }

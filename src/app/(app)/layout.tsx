@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
-import { exigerUtilisateur } from "@/lib/auth/session";
+import { exigerCompteAgence } from "@/lib/auth/session";
 import { getShellData } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * leur propre garde — ce layout ne les couvre pas.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const utilisateur = await exigerUtilisateur();
+  const utilisateur = await exigerCompteAgence();
 
   const { agence, counts, demo } = await getShellData();
   if (!agence) redirect("/inscription");

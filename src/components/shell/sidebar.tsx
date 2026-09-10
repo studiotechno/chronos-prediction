@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { deconnexion } from "@/app/auth-actions";
 import { IconDeconnexion } from "@/components/auth/icone-deconnexion";
 import { usePersistedFlag } from "@/lib/client-state";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
@@ -198,8 +197,10 @@ function MenuAgence({ agence, onClose }: { agence: AgenceEnTete; onClose: () => 
       </Link>
       <div className="am-div" />
       {/* `.am-row.danger` existe déjà pour ce genre d'action : rien à ajouter
-          au style global, l'authentification reste un ajout autonome. */}
-      <form action={deconnexion}>
+          au style global, l'authentification reste un ajout autonome.
+          Formulaire POST vers la route de déconnexion, comme sur les autres
+          produits maison — elle ferme la session côté Supabase et redirige. */}
+      <form action="/auth/signout" method="post">
         <button type="submit" className="am-row danger" role="menuitem">
           <IconDeconnexion />
           Se déconnecter

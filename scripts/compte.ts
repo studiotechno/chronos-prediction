@@ -1,8 +1,8 @@
 import "./env";
 import { createInterface } from "node:readline/promises";
-import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { closeDb, getDb, schema } from "../src/lib/db";
+import { getSupabaseAdmin } from "../src/lib/supabase/admin";
 
 /**
  * Rattache un compte Supabase Auth à l'agence — création ou changement de mot
@@ -15,7 +15,7 @@ import { closeDb, getDb, schema } from "../src/lib/db";
  * c'est le mode à préférer, un argument de ligne de commande restant visible
  * dans l'historique du shell et dans la liste des processus.
  *
- * Passe par la clé « secret » (service_role), qui contourne les RLS et autorise
+ * Passe par la clé de service (service_role), qui contourne les RLS et autorise
  * l'API d'administration : elle ne doit JAMAIS être exposée au navigateur ni
  * posée sur Vercel — ce script ne tourne qu'en local.
  */
@@ -27,12 +27,6 @@ function argument(nom: string): string | null {
   const prefixe = `--${nom}=`;
   const trouve = process.argv.find((a) => a.startsWith(prefixe));
   return trouve ? trouve.slice(prefixe.length) : null;
-}
-
-function exige(nom: string): string {
-  const valeur = process.env[nom];
-  if (!valeur) throw new Error(`${nom} manquante — renseignez-la dans .env (gabarit : .env.example).`);
-  return valeur;
 }
 
 async function demanderMotDePasse(): Promise<string> {
@@ -55,9 +49,7 @@ async function main() {
     throw new Error(`Mot de passe trop court — ${MDP_MIN} caractères minimum.`);
   }
 
-  const admin = createClient(exige("SUPABASE_URL"), exige("SUPABASE_SECRET_KEY"), {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const admin = getSupabaseAdmin();
 
   const db = getDb();
   const agence = (await db.select().from(schema.agence).limit(1))[0];
