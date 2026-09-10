@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { lireUtilisateur } from "@/lib/auth/session";
 import { loadEngineInput } from "@/lib/scoring/run";
 import { computeAll } from "@/lib/scoring/engine";
 
@@ -13,6 +14,12 @@ const corps = z.object({
 
 /** Recalcul en direct du top 20 avec des poids candidats (rien n'est persisté). */
 export async function POST(req: Request) {
+  // Une route d'API n'est pas couverte par la garde du layout : elle répond
+  // 401 plutôt que de rediriger, l'appelant étant un fetch et non un navigateur.
+  if (!(await lireUtilisateur())) {
+    return NextResponse.json({ erreur: "Non authentifié" }, { status: 401 });
+  }
+
   const json = await req.json().catch(() => null);
   const parsed = corps.safeParse(json);
   if (!parsed.success) {

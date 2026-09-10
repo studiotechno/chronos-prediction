@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { deconnexion } from "@/app/auth-actions";
+import { IconDeconnexion } from "@/components/auth/icone-deconnexion";
 import { usePersistedFlag } from "@/lib/client-state";
 import { applyTheme, readTheme, type Theme } from "@/lib/theme";
 import {
@@ -38,6 +40,8 @@ export interface AgenceEnTete {
   /** Ligne secondaire : « Vichy · 30 km ». */
   sousTitre: string;
   initiale: string;
+  /** Compte connecté, affiché dans le menu : savoir sous quelle identité on agit. */
+  email?: string | null;
 }
 
 const CLE_REPLI = "chronos.nav.replie.";
@@ -184,7 +188,7 @@ function MenuAgence({ agence, onClose }: { agence: AgenceEnTete; onClose: () => 
         <span className="am-av">{agence.initiale}</span>
         <span className="am-id">
           <span className="n">{agence.nom}</span>
-          <span className="e">{agence.sousTitre}</span>
+          <span className="e">{agence.email ?? agence.sousTitre}</span>
         </span>
       </div>
       <div className="am-div" />
@@ -192,6 +196,15 @@ function MenuAgence({ agence, onClose }: { agence: AgenceEnTete; onClose: () => 
         <IconZone />
         Ma zone de prospection
       </Link>
+      <div className="am-div" />
+      {/* `.am-row.danger` existe déjà pour ce genre d'action : rien à ajouter
+          au style global, l'authentification reste un ajout autonome. */}
+      <form action={deconnexion}>
+        <button type="submit" className="am-row danger" role="menuitem">
+          <IconDeconnexion />
+          Se déconnecter
+        </button>
+      </form>
       <div className="am-div" />
       <div className="am-theme">
         <IconSoleil />

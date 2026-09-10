@@ -301,6 +301,12 @@ export const agence = pgTable("agence", {
   nom: text("nom").notNull(),
   responsable: text("responsable"),
   email: text("email"),
+  /**
+   * Lien vers le compte Supabase Auth (`auth.users.id`) autorisé à ouvrir
+   * l'outil. Aucun mot de passe ici : Supabase Auth les porte et les hache.
+   * Null tant qu'aucun compte n'est rattaché — `npm run compte` le pose.
+   */
+  authUserId: text("auth_user_id"),
   // Ancrage de la zone : commune choisie à l'inscription (libellé lisible).
   commune: text("commune"),
   codePostal: text("code_postal"),

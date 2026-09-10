@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "compte": "tsx scripts/compte.ts",
     "score": "tsx scripts/score.ts",
     "ingest:sirene": "tsx scripts/ingest/sirene.ts",
     "ingest:offres": "tsx scripts/ingest/offres.ts",
@@ -27,6 +28,8 @@
     "backtest": "tsx scripts/backtest.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",

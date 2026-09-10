@@ -1,0 +1,21 @@
+/* Connexion — le peu de style qui manque au langage de l'inscription.
+   Feuille locale à la page plutôt qu'un ajout à globals.css : l'écran de
+   connexion n'existe que là, et l'authentification reste un ajout autonome. */
+
+.cnx-espace {
+  margin-top: 14px;
+}
+
+.ins-cta:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ins-note code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--s2);
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}

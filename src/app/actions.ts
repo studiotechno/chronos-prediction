@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
+import { exigerUtilisateur, lireUtilisateur } from "@/lib/auth/session";
 import { runScoring } from "@/lib/scoring/run";
 import { WEIGHT_DEFAULTS } from "@/lib/scoring/weights-defaults";
 
@@ -15,6 +16,7 @@ const STATUTS = ["nouveau", "contacte", "qualifie", "perdu", "gagne"] as const;
  * quel type de signal, à quel score, a fini en RDV ou en mission.
  */
 export async function updateLeadStatut(siret: string, statut: string) {
+  await exigerUtilisateur();
   const parsed = z.enum(STATUTS).safeParse(statut);
   if (!parsed.success) return { ok: false as const, message: "Statut inconnu" };
   const db = getDb();
@@ -41,6 +43,7 @@ export async function updateLeadStatut(siret: string, statut: string) {
 }
 
 export async function validerResolution(formData: FormData) {
+  await exigerUtilisateur();
   const id = String(formData.get("id") ?? "");
   const siret = String(formData.get("siret") ?? "");
   const db = getDb();
@@ -72,6 +75,7 @@ export async function validerResolution(formData: FormData) {
 }
 
 export async function rejeterResolution(formData: FormData) {
+  await exigerUtilisateur();
   const id = String(formData.get("id") ?? "");
   const db = getDb();
   await db
@@ -84,6 +88,7 @@ export async function rejeterResolution(formData: FormData) {
 const poidsSchema = z.record(z.string(), z.number().finite());
 
 export async function saveWeights(valeurs: Record<string, number>) {
+  await exigerUtilisateur();
   const parsed = poidsSchema.safeParse(valeurs);
   if (!parsed.success) return { ok: false as const, message: "Poids invalides" };
   const db = getDb();
@@ -105,6 +110,7 @@ export async function saveWeights(valeurs: Record<string, number>) {
 }
 
 export async function resetWeights() {
+  await exigerUtilisateur();
   const db = getDb();
   const now = new Date().toISOString();
   await db.transaction(async (tx) => {
@@ -152,6 +158,14 @@ export async function enregistrerAgence(input: AgenceInput) {
   const v = parsed.data;
   const db = getDb();
   const existante = (await db.select().from(schema.agence).limit(1))[0];
+
+  // Seule action ouverte sans session, et seulement sur base vierge : c'est
+  // l'amorçage, il n'existe alors aucun compte pour s'authentifier. Dès qu'une
+  // agence existe, cette même action sert à modifier la zone — et exige donc
+  // d'être connecté, sinon un inconnu déplacerait la zone de prospection.
+  if (existante && !(await lireUtilisateur())) {
+    return { ok: false as const, message: "Session expirée — reconnectez-vous." };
+  }
 
   const valeurs = {
     nom: v.nom,

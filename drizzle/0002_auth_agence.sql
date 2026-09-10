@@ -1,0 +1,1 @@
+ALTER TABLE "agence" ADD COLUMN "auth_user_id" text;

@@ -15,6 +15,13 @@
       "when": 1787919748083,
       "tag": "0001_v2_moteur",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789048035891,
+      "tag": "0002_auth_agence",
+      "breakpoints": true
     }
   ]
 }
