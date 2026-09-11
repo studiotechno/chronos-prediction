@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -8,6 +9,13 @@ import { createClient } from "@/lib/supabase/client";
    moment pour l'utilisateur, la porte de l'outil. La connexion passe par le
    client navigateur, comme sur les autres produits maison : Supabase pose
    lui-même les cookies de session, et le middleware les rafraîchit ensuite. */
+
+/** Motifs d'un retour forcé sur cette page — voir /auth/signout et /auth/callback. */
+const MOTIFS: Record<string, string> = {
+  "compte-non-rattache": "Ce compte n’est pas rattaché à cette agence.",
+  "lien-expire": "Ce lien de réinitialisation a expiré ou a déjà servi. Demandez-en un nouveau.",
+  "lien-invalide": "Lien de réinitialisation illisible. Demandez-en un nouveau.",
+};
 
 export function FormulaireConnexion({
   nomAgence,
@@ -20,11 +28,7 @@ export function FormulaireConnexion({
 
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
-  const [erreur, setErreur] = useState<string | null>(
-    raison === "compte-non-rattache"
-      ? "Ce compte n’est pas rattaché à cette agence."
-      : null,
-  );
+  const [erreur, setErreur] = useState<string | null>(MOTIFS[raison ?? ""] ?? null);
   const [enCours, setEnCours] = useState(false);
 
   async function connecter(e: FormEvent) {
@@ -94,9 +98,14 @@ export function FormulaireConnexion({
         />
 
         <div className="cnx-espace">
-          <label className="ins-lb" htmlFor="motDePasse">
-            Mot de passe
-          </label>
+          <div className="cnx-ligne-lb">
+            <label className="ins-lb" htmlFor="motDePasse">
+              Mot de passe
+            </label>
+            <Link href="/mot-de-passe-oublie" className="cnx-oubli">
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <input
             id="motDePasse"
             name="motDePasse"
@@ -118,11 +127,6 @@ export function FormulaireConnexion({
         <button type="submit" className="ins-cta" disabled={enCours}>
           {enCours ? "Vérification…" : "Se connecter"}
         </button>
-
-        <p className="ins-note">
-          Mot de passe oublié : il n’est pas récupérable — Supabase ne stocke qu’une empreinte. Un
-          nouveau se pose en ligne de commande avec <code>npm run compte</code>.
-        </p>
       </form>
     </main>
   );

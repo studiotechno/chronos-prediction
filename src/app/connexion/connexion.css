@@ -1,9 +1,41 @@
-/* Connexion — le peu de style qui manque au langage de l'inscription.
-   Feuille locale à la page plutôt qu'un ajout à globals.css : l'écran de
-   connexion n'existe que là, et l'authentification reste un ajout autonome. */
+/* Connexion et réinitialisation — le peu de style qui manque au langage de
+   l'inscription. Feuille locale plutôt qu'un ajout à globals.css : ces écrans
+   n'existent qu'ici, et l'authentification reste un ajout autonome. */
 
 .cnx-espace {
   margin-top: 14px;
+}
+
+/* Libellé du champ et lien « mot de passe oublié » sur la même ligne : le
+   recours est proposé là où le doute apparaît, pas relégué en bas de carte. */
+.cnx-ligne-lb {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.cnx-ligne-lb .ins-lb {
+  flex: 1;
+}
+
+.cnx-oubli,
+.cnx-lien {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.cnx-oubli:hover,
+.cnx-lien:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.cnx-lien {
+  display: inline-block;
+  margin-top: 18px;
 }
 
 .ins-cta:disabled {
