@@ -53,3 +53,6 @@ data/reel.db
 # Sauvegarde des tables qui occupaient la base Supabase avant sa remise à zéro
 # (données d'un autre projet — ne jamais committer).
 data/backup/
+
+# État local du CLI Supabase (projet lié) : propre à chaque poste.
+supabase/.temp/
